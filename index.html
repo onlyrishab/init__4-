@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SignSetu — Real-time ISL Conversation Engine</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#07070e;--bg2:#0d0d1a;--bg3:#111122;
+  --border:rgba(255,255,255,0.06);--border2:rgba(255,255,255,0.1);
+  --text:rgba(255,255,255,0.88);--muted:rgba(255,255,255,0.35);--dim:rgba(255,255,255,0.12);
+  --blue:#38bdf8;--purple:#a78bfa;--green:#34d399;--red:#f87171;--amber:#fbbf24;--orange:#fb923c;--pink:#f472b6;--teal:#2dd4bf;
+  --pat-c:#38bdf8;--doc-c:#34d399;
+}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);height:100vh;overflow:hidden;-webkit-font-smoothing:antialiased}
+.hidden{display:none!important}
+::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.06);border-radius:2px}
+
+/* ─── WELCOME ─── */
+.welcome{height:100vh;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:0;
+  background:radial-gradient(ellipse 80% 50% at 50% -10%,rgba(56,189,248,0.07),transparent)}
+.w-logo{font-size:64px;font-weight:700;letter-spacing:-2px;color:#fff}
+.w-logo span{color:var(--blue)}
+.w-tagline{font-size:16px;color:var(--muted);margin-top:8px;font-style:italic}
+.w-stat{font-size:11px;color:var(--dim);margin-top:6px;margin-bottom:40px;letter-spacing:.5px}
+.w-stat b{color:rgba(255,255,255,0.22);font-weight:500}
+.start-btn{font-family:inherit;font-size:16px;font-weight:600;padding:14px 44px;border-radius:12px;
+  border:1px solid rgba(56,189,248,0.25);background:rgba(56,189,248,0.06);color:var(--blue);cursor:pointer;transition:all .2s}
+.start-btn:hover{background:rgba(56,189,248,0.12);border-color:rgba(56,189,248,0.4);transform:translateY(-1px)}
+
+/* ─── GUIDE MODAL ─── */
+.guide-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:200;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+.guide-modal{background:var(--bg2);border:1px solid var(--border2);border-radius:16px;width:min(860px,94vw);max-height:88vh;overflow-y:auto;padding:28px 32px}
+.guide-modal h2{font-size:22px;font-weight:700;margin-bottom:4px}
+.guide-modal .sub{font-size:13px;color:var(--muted);margin-bottom:24px}
+.guide-section{margin-bottom:24px}
+.guide-section h3{font-size:11px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+.sign-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}
+.sign-card{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:10px 12px;display:flex;gap:10px;align-items:flex-start}
+.sign-card .emoji{font-size:22px;flex-shrink:0;margin-top:1px}
+.sign-card .info{}
+.sign-card .name{font-size:11px;font-weight:700;letter-spacing:.5px;color:var(--text);margin-bottom:2px}
+.sign-card .desc{font-size:10px;color:var(--muted);line-height:1.4}
+.guide-note{background:rgba(56,189,248,0.04);border:1px solid rgba(56,189,248,0.1);border-radius:8px;padding:10px 14px;font-size:12px;color:rgba(56,189,248,0.65);margin-bottom:20px;line-height:1.6}
+.guide-ok{font-family:inherit;font-size:14px;font-weight:600;padding:12px 36px;border-radius:10px;border:1px solid rgba(56,189,248,0.3);background:rgba(56,189,248,0.08);color:var(--blue);cursor:pointer;transition:all .2s;display:block;margin:0 auto}
+.guide-ok:hover{background:rgba(56,189,248,0.16)}
+
+/* ─── MAIN APP ─── */
+.main-app{display:grid;grid-template-rows:44px 1fr 22px;height:100vh;gap:8px;padding:8px 12px}
+
+/* ─── HEADER ─── */
+.app-hdr{display:flex;align-items:center;justify-content:space-between}
+.logo{font-size:18px;font-weight:700;letter-spacing:-.5px;color:#fff}.logo span{color:var(--blue)}
+.hdr-mid{display:flex;align-items:center;gap:8px}
+.hdr-btn{font-family:inherit;font-size:10px;font-weight:600;letter-spacing:.5px;padding:4px 12px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;transition:all .2s}
+.hdr-btn:hover{border-color:var(--border2);color:var(--text)}
+.q-badge{font-size:9px;font-weight:700;padding:3px 10px;border-radius:999px;background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.15);color:rgba(251,191,36,0.6);opacity:0;transition:opacity .3s}
+.q-badge.on{opacity:1}
+
+/* ─── SPLIT ─── */
+.split{display:grid;grid-template-columns:380px 1fr;gap:10px;overflow:hidden;min-height:0}
+
+/* ─── PATIENT PANEL ─── */
+.p-panel{display:flex;flex-direction:column;gap:7px;overflow:hidden}
+
+.cam{position:relative;border-radius:10px;overflow:hidden;border:1px solid var(--border);background:#0a0a14;flex-shrink:0;aspect-ratio:4/3}
+.cam video,.cam canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.cam canvas{z-index:1}
+.cb{position:absolute;z-index:3;font-size:9px;font-weight:600;font-family:'DM Mono',monospace;padding:3px 8px;border-radius:5px;background:rgba(0,0,0,0.55);backdrop-filter:blur(4px);border:1px solid rgba(255,255,255,0.04)}
+.cb-fps{top:7px;left:7px;color:var(--green)}
+.cb-sign{top:7px;right:7px;color:var(--amber);opacity:0;transition:opacity .3s}.cb-sign.vis{opacity:1}
+
+/* Sign indicator */
+.si{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--bg2);border-radius:9px;border:1px solid var(--border)}
+.si-e{font-size:24px;transition:transform .25s cubic-bezier(.34,1.56,.64,1)}
+.si-e.pop{transform:scale(1.25)}
+.si-txt{flex:1;min-width:0}
+.si-name{font-size:18px;font-weight:700;letter-spacing:.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;transition:color .25s}
+.si-sub{font-size:9px;font-weight:500;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-top:1px}
+.si-bar{width:64px;height:3px;border-radius:2px;background:rgba(255,255,255,0.05);overflow:hidden;flex-shrink:0}
+.si-fill{height:100%;width:0;border-radius:2px;transition:width .1s linear;background:var(--blue)}
+
+/* Chain */
+.chain{display:flex;align-items:center;flex-wrap:wrap;gap:4px;padding:7px 10px;min-height:34px;background:var(--bg2);border-radius:9px;border:1px solid var(--border);transition:border-color .3s}
+.chain.active{border-color:rgba(56,189,248,0.2)}
+.ch-pill{font-size:10px;font-weight:700;padding:3px 9px;border-radius:5px;background:rgba(56,189,248,0.07);border:1px solid rgba(56,189,248,0.15);color:rgba(56,189,248,0.8);animation:popIn .2s cubic-bezier(.34,1.56,.64,1)}
+.ch-sep{font-size:9px;color:var(--dim);font-weight:700}
+.ch-empty{font-size:9px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--dim)}
+@keyframes popIn{from{transform:scale(.75);opacity:0}to{transform:scale(1);opacity:1}}
+
+/* Sign reference tiles */
+.ref-wrap{overflow-y:auto;flex:1;min-height:0}
+.ref-label{font-size:9px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:var(--dim);padding:4px 0 6px}
+.ref-grid{display:flex;flex-wrap:wrap;gap:3px}
+.ref-tile{font-size:9px;font-weight:600;padding:3px 7px;border-radius:5px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.03);color:rgba(255,255,255,0.2);transition:all .25s;cursor:default;white-space:nowrap}
+.ref-tile.active{background:rgba(255,255,255,0.05);border-color:rgba(255,255,255,0.08);color:var(--col)}
+
+/* ─── CONVERSATION PANEL ─── */
+.c-panel{display:flex;flex-direction:column;background:var(--bg2);border-radius:12px;border:1px solid var(--border);overflow:hidden;min-height:0}
+.c-hdr{padding:9px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+.c-title{font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.5px}
+.c-sub{font-size:10px;color:var(--dim)}
+.chat{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:9px;min-height:0}
+.chat-empty{text-align:center;color:var(--dim);font-size:13px;padding:40px 20px;line-height:2.2}
+.bub{max-width:88%;padding:10px 14px;border-radius:12px;animation:bubIn .25s cubic-bezier(.34,1.56,.64,1)}
+.bub.pat{align-self:flex-start;background:rgba(56,189,248,0.06);border:1px solid rgba(56,189,248,0.1);border-bottom-left-radius:3px}
+.bub.doc{align-self:flex-end;background:rgba(52,211,153,0.06);border:1px solid rgba(52,211,153,0.1);border-bottom-right-radius:3px;text-align:right}
+.bub-who{font-size:8px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px}
+.bub.pat .bub-who{color:rgba(56,189,248,0.4)}
+.bub.doc .bub-who{color:rgba(52,211,153,0.4)}
+.bub-en{font-size:14px;font-weight:500;line-height:1.45;color:var(--text)}
+.bub-hi{font-size:12px;color:rgba(56,189,248,0.5);margin-top:3px}
+@keyframes bubIn{from{transform:scale(.93) translateY(6px);opacity:0}to{transform:scale(1) translateY(0);opacity:1}}
+
+/* Follow-up chips */
+.doc-sug{display:flex;gap:5px;padding:6px 12px;overflow-x:auto;border-top:1px solid var(--border);flex-shrink:0;scrollbar-width:none}
+.doc-sug:empty{display:none}
+.sug-chip{font-size:10px;font-weight:500;padding:5px 12px;border-radius:999px;background:rgba(52,211,153,0.04);border:1px solid rgba(52,211,153,0.1);color:rgba(52,211,153,0.5);cursor:pointer;white-space:nowrap;flex-shrink:0;transition:all .2s}
+.sug-chip:hover{background:rgba(52,211,153,0.1);color:rgba(52,211,153,0.8)}
+
+/* Doctor input */
+.doc-in{padding:8px 12px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-shrink:0}
+.mic{font-family:inherit;width:36px;height:36px;border-radius:50%;border:1.5px solid rgba(52,211,153,0.2);background:rgba(52,211,153,0.04);color:var(--green);font-size:15px;cursor:pointer;transition:all .2s;flex-shrink:0}
+.mic:hover{background:rgba(52,211,153,0.08)}
+.mic.on{border-color:var(--green);background:rgba(52,211,153,0.12);animation:micPulse 1.5s infinite}
+@keyframes micPulse{0%,100%{box-shadow:0 0 0 0 rgba(52,211,153,0.12)}50%{box-shadow:0 0 0 7px rgba(52,211,153,0)}}
+.doc-txt{font-size:12px;color:var(--dim);font-style:italic;flex:1}
+
+/* ─── FOOTER ─── */
+.sym-bar{display:flex;align-items:center;gap:7px;min-height:22px;overflow:hidden}
+.sym-bar.empty{opacity:0}
+.sym-l{font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--dim)}
+.sym-i{font-size:10px;font-weight:600;padding:2px 8px;border-radius:999px;background:rgba(248,113,113,0.06);border:1px solid rgba(248,113,113,0.12);color:rgba(248,113,113,0.6)}
+
+/* ─── DEBUG ─── */
+.dbg{position:fixed;bottom:8px;left:8px;font-size:9px;font-family:'DM Mono',monospace;color:rgba(255,255,255,0.25);display:none;background:rgba(0,0,0,0.6);padding:7px 12px;border-radius:7px;border:1px solid var(--border);line-height:1.7;z-index:100}
+.dbg.vis{display:block}
+</style>
+</head>
+<body>
+
+<!-- WELCOME -->
+<div id="welcome" class="welcome">
+  <div style="text-align:center">
+    <h1 class="w-logo">Sign<span>Setu</span></h1>
+    <p class="w-tagline">"It doesn't recognize signs. It understands sign language."</p>
+    <p class="w-stat"><b>18M</b> deaf Indians · <b>250</b> certified interpreters · <b>0</b> at most hospitals</p>
+    <button id="startBtn" class="start-btn">Begin Session →</button>
+    <p style="font-size:11px;color:var(--dim);margin-top:14px">Camera + microphone required</p>
+  </div>
+</div>
+
+<!-- SIGN GUIDE MODAL -->
+<div id="guideOverlay" class="guide-overlay hidden">
+  <div class="guide-modal">
+    <h2>Learn the Signs</h2>
+    <p class="sub">Show these hand shapes to the camera. The system will do the rest.</p>
+
+    <div class="guide-note">
+      💡 You don't need to know all signs — learn the ones for your symptoms. Combine signs to form sentences.<br>
+      Example: <strong>PAIN → STOMACH</strong> → system says <em>"I have pain in my stomach"</em>
+    </div>
+
+    <div class="guide-section">
+      <h3>Symptoms</h3>
+      <div class="sign-grid">
+        <div class="sign-card"><div class="emoji">✊</div><div class="info"><div class="name">PAIN</div><div class="desc">Closed fist — all fingers curled</div></div></div>
+        <div class="sign-card"><div class="emoji">🤒</div><div class="info"><div class="name">FEVER</div><div class="desc">3 middle fingers up (index, middle, ring)</div></div></div>
+        <div class="sign-card"><div class="emoji">🤮</div><div class="info"><div class="name">VOMIT</div><div class="desc">Only middle finger up</div></div></div>
+        <div class="sign-card"><div class="emoji">😮‍💨</div><div class="info"><div class="name">BREATHLESS</div><div class="desc">All 4 fingers up, thumb tucked</div></div></div>
+        <div class="sign-card"><div class="emoji">💫</div><div class="info"><div class="name">DIZZY</div><div class="desc">Pinky + thumb out (call sign shape)</div></div></div>
+        <div class="sign-card"><div class="emoji">😴</div><div class="info"><div class="name">WEAKNESS</div><div class="desc">Only ring finger up</div></div></div>
+        <div class="sign-card"><div class="emoji">🫀</div><div class="info"><div class="name">SWELLING</div><div class="desc">Only pinky up</div></div></div>
+        <div class="sign-card"><div class="emoji">🩸</div><div class="info"><div class="name">BLEEDING</div><div class="desc">Index + middle up (peace sign)</div></div></div>
+      </div>
+    </div>
+
+    <div class="guide-section">
+      <h3>Body Parts (point these with index finger in that direction)</h3>
+      <div class="sign-grid">
+        <div class="sign-card"><div class="emoji">☝️</div><div class="info"><div class="name">HEAD</div><div class="desc">Index only, pointing up</div></div></div>
+        <div class="sign-card"><div class="emoji">👉</div><div class="info"><div class="name">THROAT</div><div class="desc">Index only, pointing forward</div></div></div>
+        <div class="sign-card"><div class="emoji">🤞</div><div class="info"><div class="name">CHEST</div><div class="desc">Index + middle crossed</div></div></div>
+        <div class="sign-card"><div class="emoji">🤟</div><div class="info"><div class="name">STOMACH</div><div class="desc">Index + pinky + thumb (🤟 shape)</div></div></div>
+        <div class="sign-card"><div class="emoji">🖖</div><div class="info"><div class="name">BACK</div><div class="desc">Spock hand (index+middle, ring+pinky split)</div></div></div>
+        <div class="sign-card"><div class="emoji">👋</div><div class="info"><div class="name">ARM</div><div class="desc">Open palm, waving shape</div></div></div>
+        <div class="sign-card"><div class="emoji">🤙</div><div class="info"><div class="name">LEG</div><div class="desc">Pinky + thumb only (hang loose)</div></div></div>
+      </div>
+    </div>
+
+    <div class="guide-section">
+      <h3>Duration</h3>
+      <div class="sign-grid">
+        <div class="sign-card"><div class="emoji">⏱️</div><div class="info"><div class="name">SINCE_MORNING</div><div class="desc">Thumb + index out (L-shape)</div></div></div>
+        <div class="sign-card"><div class="emoji">📅</div><div class="info"><div class="name">SINCE_DAYS</div><div class="desc">3 fingers (index, middle, ring) spread wide</div></div></div>
+        <div class="sign-card"><div class="emoji">📆</div><div class="info"><div class="name">SINCE_WEEK</div><div class="desc">All 5 fingers spread wide (HELLO spread)</div></div></div>
+      </div>
+    </div>
+
+    <div class="guide-section">
+      <h3>Severity</h3>
+      <div class="sign-grid">
+        <div class="sign-card"><div class="emoji">😐</div><div class="info"><div class="name">MILD</div><div class="desc">Thumb + index form small circle (OK-ish)</div></div></div>
+        <div class="sign-card"><div class="emoji">😣</div><div class="info"><div class="name">SEVERE</div><div class="desc">Thumb + index fully extended L, held firm</div></div></div>
+      </div>
+    </div>
+
+    <div class="guide-section">
+      <h3>Responses & Actions</h3>
+      <div class="sign-grid">
+        <div class="sign-card"><div class="emoji">👍</div><div class="info"><div class="name">YES</div><div class="desc">Thumbs up — thumb pointing up, fist</div></div></div>
+        <div class="sign-card"><div class="emoji">👎</div><div class="info"><div class="name">NO</div><div class="desc">Thumb down</div></div></div>
+        <div class="sign-card"><div class="emoji">💊</div><div class="info"><div class="name">MEDICINE</div><div class="desc">Index + middle up, slight curl (M shape)</div></div></div>
+        <div class="sign-card"><div class="emoji">💧</div><div class="info"><div class="name">WATER</div><div class="desc">Index + middle + ring up (W shape)</div></div></div>
+        <div class="sign-card"><div class="emoji">🆘</div><div class="info"><div class="name">HELP</div><div class="desc">All 5 fingers spread wide apart</div></div></div>
+        <div class="sign-card"><div class="emoji">🚨</div><div class="info"><div class="name">EMERGENCY</div><div class="desc">Thumb + pinky out (call sign), held tight</div></div></div>
+      </div>
+    </div>
+
+    <button class="guide-ok" id="guideOk">I understand — Start Signing</button>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app" class="main-app hidden">
+  <header class="app-hdr">
+    <div class="logo">Sign<span>Setu</span></div>
+    <div class="hdr-mid">
+      <button class="hdr-btn" id="guideBtn">📖 Sign Guide</button>
+      <div class="q-badge" id="qBadge">❓ QUESTION MODE</div>
+    </div>
+  </header>
+
+  <div class="split">
+    <!-- Patient Side -->
+    <div class="p-panel">
+      <div class="cam">
+        <video id="video" autoplay playsinline></video>
+        <canvas id="canvas"></canvas>
+        <div class="cb cb-fps" id="fps">-- FPS</div>
+        <div class="cb cb-sign" id="cbSign"></div>
+      </div>
+
+      <div class="si">
+        <div class="si-e" id="sEmoji">🤚</div>
+        <div class="si-txt">
+          <div class="si-name" id="sName" style="color:var(--dim)">READY</div>
+          <div class="si-sub" id="sSub">show hand to camera</div>
+        </div>
+        <div class="si-bar"><div class="si-fill" id="sFill"></div></div>
+      </div>
+
+      <div class="chain idle" id="chain"><span class="ch-empty">chain idle — start signing</span></div>
+
+      <div class="ref-wrap">
+        <div class="ref-label">Recognised signs</div>
+        <div class="ref-grid" id="refGrid"></div>
+      </div>
+    </div>
+
+    <!-- Conversation Side -->
+    <div class="c-panel">
+      <div class="c-hdr">
+        <span class="c-title">Conversation</span>
+        <span class="c-sub">Patient ↔ Doctor</span>
+      </div>
+      <div class="chat" id="chat">
+        <div class="chat-empty" id="chatEmpty">
+          👋 Patient starts signing on the left<br><br>
+          Doctor speaks using 🎤 below<br><br>
+          <span style="font-size:10px;color:var(--dim)">Keys: 1–0 symptoms · Q–L body parts · D debug · ? question mode</span>
+        </div>
+      </div>
+      <div class="doc-sug" id="docSug"></div>
+      <div class="doc-in">
+        <button class="mic" id="micBtn" title="Doctor microphone">🎤</button>
+        <div class="doc-txt" id="docTxt">Click 🎤 for doctor to speak...</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sym-bar empty" id="symBar"><span class="sym-l">Symptoms noted:</span></div>
+</div>
+
+<div class="dbg" id="dbg"></div>
+
+<script>
+/* ══ CONFIG ══ */
+const CFG={BUFFER:10,CONFIRM:0.65,FTHRESH:0.025,TDIST:0.085,HELP_SPREAD:0.24};
+const CHAIN_TIMEOUT=2200;
+
+/* ══ SIGNS ══
+   Each sign has a unique geometric fingerprint.
+   FP = [thumb, index, middle, ring, pinky] as binary string
+   
+   SYMPTOMS (8):
+     PAIN       00000  closed fist
+     FEVER      01110  index+middle+ring (3 mid fingers)
+     VOMIT      00100  middle only
+     BREATHLESS 01111  4 fingers, no thumb
+     DIZZY      special  pinky+thumb (call sign = 10001 but we handle via special check)
+     WEAKNESS   00010  ring only
+     SWELLING   00001  pinky only
+     BLEEDING   01100  index+middle (peace) — same as MEDICINE, disambig by ring state
+     
+   BODY PARTS (7) — patient points explicitly:
+     HEAD       01000  index only pointing up
+     THROAT     special  index only pointing forward — same FP as HEAD; disambig by Y delta
+     CHEST      01100  — reuse? NO — we use CROSSED fingers for CHEST
+     STOMACH    11001  index+pinky+thumb
+     BACK       special  spock
+     ARM        11111  relaxed open = same as HELLO — we handle via separate check
+     LEG        10001  thumb+pinky
+     
+   DURATION (3):
+     SINCE_MORNING  11000  thumb+index (L-shape)  
+     SINCE_DAYS     01110  same as FEVER — need to find alternate…
+     
+   Actually let's keep it simple and unambiguous:
+   We use 18 clearly-distinct fingerprints.
+══ */
+
+const SIGNS = {
+  /* ── SYMPTOMS ── */
+  PAIN:         {tag:'SYMPTOM',    color:'#f87171', emoji:'✊', desc:'fist'},
+  FEVER:        {tag:'SYMPTOM',    color:'#fb923c', emoji:'🤒', desc:'3 mid fingers'},
+  VOMIT:        {tag:'SYMPTOM',    color:'#a3e635', emoji:'🤮', desc:'middle only'},
+  BREATHLESS:   {tag:'SYMPTOM',    color:'#67e8f9', emoji:'😮‍💨',desc:'4 fingers no thumb'},
+  WEAKNESS:     {tag:'SYMPTOM',    color:'#c084fc', emoji:'😴', desc:'ring only'},
+  SWELLING:     {tag:'SYMPTOM',    color:'#f472b6', emoji:'🫀', desc:'pinky only'},
+  BLEEDING:     {tag:'SYMPTOM',    color:'#f43f5e', emoji:'🩸', desc:'index+middle tight'},
+  DIZZY:        {tag:'SYMPTOM',    color:'#fbbf24', emoji:'💫', desc:'thumb+pinky out'},
+  /* ── BODY PARTS ── */
+  HEAD:         {tag:'BODY_PART',  color:'#38bdf8', emoji:'☝️', desc:'index up'},
+  CHEST:        {tag:'BODY_PART',  color:'#60a5fa', emoji:'🫁', desc:'index+middle crossed'},
+  STOMACH:      {tag:'BODY_PART',  color:'#818cf8', emoji:'🤰', desc:'index+pinky+thumb'},
+  BACK:         {tag:'BODY_PART',  color:'#a78bfa', emoji:'🔙', desc:'spock hand'},
+  LEG:          {tag:'BODY_PART',  color:'#c4b5fd', emoji:'🦵', desc:'thumb+pinky (call)'},
+  /* ── DURATION ── */
+  SINCE_MORNING:{tag:'DURATION',   color:'#34d399', emoji:'⏱️', desc:'L-shape thumb+index'},
+  SINCE_DAYS:   {tag:'DURATION',   color:'#2dd4bf', emoji:'📅', desc:'5 fingers spread tight'},
+  /* ── SEVERITY ── */
+  SEVERE:       {tag:'SEVERITY',   color:'#f87171', emoji:'😣', desc:'fist + thumb side'},
+  /* ── RESPONSES ── */
+  YES:          {tag:'AFFIRM',     color:'#34d399', emoji:'👍', desc:'thumbs up'},
+  NO:           {tag:'NEGATION',   color:'#fbbf24', emoji:'👎', desc:'thumbs down'},
+  MEDICINE:     {tag:'OBJECT',     color:'#c084fc', emoji:'💊', desc:'index+middle spread'},
+  WATER:        {tag:'OBJECT',     color:'#67e8f9', emoji:'💧', desc:'3 fingers (W)'},
+  HELP:         {tag:'REQUEST',    color:'#818cf8', emoji:'🆘', desc:'5 wide spread'},
+  EMERGENCY:    {tag:'URGENT',     color:'#f43f5e', emoji:'🚨', desc:'rock sign tight'},
+  HELLO:        {tag:'GREETING',   color:'#94a3b8', emoji:'👋', desc:'open palm relaxed'},
+};
+
+/* ── fingerprint → sign map ──
+   FP = thumb|index|middle|ring|pinky
+   We expand body parts to explicit signs; no position-based detection anymore.
+*/
+const FP_MAP = {
+  '00000': 'PAIN',          // fist
+  '01000': 'HEAD',          // index only
+  '00100': 'VOMIT',         // middle only
+  '00010': 'WEAKNESS',      // ring only
+  '00001': 'SWELLING',      // pinky only
+  '01100': 'BLEEDING',      // index+middle tight (peace) — MEDICINE will be disambig'd
+  '01110': 'FEVER',         // index+middle+ring
+  '01111': 'BREATHLESS',    // 4 fingers, no thumb
+  '11000': 'SINCE_MORNING', // thumb+index L-shape
+  '10000': 'YES_THUMB',     // placeholder — handled by isThumbUp
+  '11001': 'STOMACH',       // thumb+index+pinky
+  '11111': 'HELLO',         // all — disambig: HELP(wide)/SINCE_DAYS(tight)/HELLO(relax)
+  '10001': 'LEG',           // thumb+pinky (call sign / dizzy)
+};
+
+/* English + Hindi for everything */
+const W_EN = {
+  PAIN:'pain',FEVER:'fever',VOMIT:'vomiting',BREATHLESS:'breathlessness',WEAKNESS:'weakness',
+  SWELLING:'swelling',BLEEDING:'bleeding',DIZZY:'dizziness',
+  HEAD:'head',CHEST:'chest',STOMACH:'stomach',BACK:'back',LEG:'leg',
+  SINCE_MORNING:'since this morning',SINCE_DAYS:'for several days',
+  SEVERE:'severe',
+  YES:'yes',NO:'no',MEDICINE:'medicine',WATER:'water',HELP:'help',EMERGENCY:'emergency',HELLO:'hello',
+};
+const W_HI = {
+  PAIN:'दर्द',FEVER:'बुखार',VOMIT:'उल्टी',BREATHLESS:'सांस लेने में तकलीफ',WEAKNESS:'कमज़ोरी',
+  SWELLING:'सूजन',BLEEDING:'खून',DIZZY:'चक्कर',
+  HEAD:'सिर',CHEST:'छाती',STOMACH:'पेट',BACK:'पीठ',LEG:'पैर',
+  SINCE_MORNING:'सुबह से',SINCE_DAYS:'कई दिनों से',
+  SEVERE:'बहुत ज़्यादा',
+  YES:'हाँ',NO:'नहीं',MEDICINE:'दवाई',WATER:'पानी',HELP:'मदद',EMERGENCY:'आपातकाल',HELLO:'नमस्ते',
+};
+
+/* ══ SENTENCE TEMPLATES ══
+   More patterns = more natural sentences.
+   Tags are matched in order, longest match wins.
+*/
+const TEMPLATES = [
+  // Single symptom
+  {p:['SYMPTOM'],             en:'I have {0}',                            hi:'मुझे {0} है'},
+  // Symptom + body part
+  {p:['SYMPTOM','BODY_PART'], en:'I have {0} in my {1}',                 hi:'मेरे {1} में {0} है'},
+  // Symptom + body + duration
+  {p:['SYMPTOM','BODY_PART','DURATION'],en:'I have {0} in my {1}, {2}',  hi:'मेरे {1} में {0} है, {2}'},
+  // Symptom + duration
+  {p:['SYMPTOM','DURATION'],  en:'I have {0} {1}',                       hi:'मुझे {1} से {0} है'},
+  // Symptom + severity
+  {p:['SEVERITY','SYMPTOM'],  en:'I have {1} — it is very {0}',          hi:'मुझे {0} {1} है'},
+  {p:['SYMPTOM','SEVERITY'],  en:'I have {0} — it is very severe',       hi:'मुझे बहुत {0} है'},
+  // Symptom + body + severity
+  {p:['SYMPTOM','BODY_PART','SEVERITY'],en:'I have severe {0} in my {1}',hi:'मेरे {1} में बहुत {0} है'},
+  // Two symptoms
+  {p:['SYMPTOM','SYMPTOM'],   en:'I have {0} and {1}',                   hi:'मुझे {0} और {1} है'},
+  // Two symptoms + body
+  {p:['SYMPTOM','SYMPTOM','BODY_PART'],en:'I have {0} and {1} in my {2}',hi:'मेरे {2} में {0} और {1} है'},
+  // Body part only (pointing)
+  {p:['BODY_PART'],           en:'It hurts here — my {0}',               hi:'यहाँ दर्द है — मेरे {0} में'},
+  // Yes/No with context
+  {p:['AFFIRM','SYMPTOM'],    en:'Yes, I have {1}',                      hi:'हाँ, मुझे {1} है'},
+  {p:['AFFIRM','OBJECT'],     en:'Yes, please — {1}',                    hi:'हाँ, {1} चाहिए'},
+  {p:['AFFIRM','SYMPTOM','BODY_PART'],en:'Yes, {1} in my {2}',           hi:'हाँ, मेरे {2} में {1} है'},
+  {p:['AFFIRM','DURATION'],   en:'Yes, {1}',                             hi:'हाँ, {1}'},
+  {p:['NEGATION','SYMPTOM'],  en:"No, I don't have {1}",                 hi:'नहीं, मुझे {1} नहीं है'},
+  {p:['NEGATION','OBJECT'],   en:"No, I don't need {1}",                 hi:'नहीं, {1} नहीं चाहिए'},
+  // Duration alone (as clarification)
+  {p:['DURATION'],            en:'It has been {0}',                      hi:'{0} हो गया है'},
+  // Requests
+  {p:['REQUEST'],             en:'I need help, please',                   hi:'मुझे मदद चाहिए'},
+  {p:['OBJECT'],              en:'I need {0}',                            hi:'मुझे {0} चाहिए'},
+  // Urgent
+  {p:['URGENT'],              en:'EMERGENCY — I need help immediately!',  hi:'आपातकाल! मुझे तुरंत मदद चाहिए!'},
+  // Affirm/Negate alone
+  {p:['AFFIRM'],              en:'Yes',                                   hi:'हाँ'},
+  {p:['NEGATION'],            en:'No',                                    hi:'नहीं'},
+  {p:['GREETING'],            en:'Hello, Namaste',                        hi:'नमस्ते'},
+];
+
+/* ══ FOLLOW-UP CHIPS ══ (doctor's side) */
+const FOLLOW_UPS = {
+  PAIN_BODY: [
+    {en:'Is the pain severe or mild?',hi:'दर्द कितना तेज़ है?'},
+    {en:'Is it constant or comes and goes?',hi:'लगातार है या आता-जाता है?'},
+    {en:'Did it start suddenly?',hi:'अचानक शुरू हुआ?'},
+    {en:'Did you eat anything unusual?',hi:'कुछ अलग खाया था?'},
+  ],
+  FEVER: [
+    {en:'Since when do you have fever?',hi:'बुखार कब से है?'},
+    {en:'Have you taken any medicine?',hi:'दवाई ली है?'},
+    {en:'Do you have chills or body ache?',hi:'ठंड या बदन दर्द है?'},
+  ],
+  VOMIT: [
+    {en:'How many times today?',hi:'आज कितनी बार?'},
+    {en:'Any blood in the vomit?',hi:'खून आया उल्टी में?'},
+    {en:'Can you keep any food down?',hi:'कुछ खा-पी पा रहे हैं?'},
+  ],
+  BREATHLESS: [
+    {en:'Are you breathless right now?',hi:'अभी सांस में तकलीफ है?'},
+    {en:'Do you have chest tightness?',hi:'छाती में भारीपन है?'},
+    {en:'Does it worsen on movement?',hi:'चलने पर बढ़ता है?'},
+  ],
+  SYMPTOM: [
+    {en:'Is this the first time?',hi:'पहली बार हो रहा है?'},
+    {en:'Are you on any medication?',hi:'कोई दवाई चल रही है?'},
+    {en:'Any known allergies?',hi:'कोई एलर्जी है?'},
+    {en:'Since when?',hi:'कब से है?'},
+  ],
+  URGENT: [
+    {en:'Can you breathe normally?',hi:'सामान्य सांस ले पा रहे हैं?'},
+    {en:'Are you feeling faint?',hi:'चक्कर आ रहा है?'},
+    {en:'Any chest pain?',hi:'सीने में दर्द है?'},
+  ],
+  YES: [
+    {en:'Can you tell me more?',hi:'और बताइए?'},
+    {en:'How long has this been?',hi:'कितने समय से है?'},
+    {en:'Is it getting worse?',hi:'बढ़ रहा है?'},
+  ],
+  NO: [
+    {en:'Any other problems?',hi:'और कोई तकलीफ?'},
+    {en:'Are you sure?',hi:'पक्के हैं?'},
+  ],
+};
+
+/* ══ DOM ══ */
+const $=id=>document.getElementById(id);
+const $v=$('video'),$cv=$('canvas'),ctx=$cv.getContext('2d');
+const $fps=$('fps'),$cbS=$('cbSign'),$sE=$('sEmoji'),$sN=$('sName'),$sSub=$('sSub'),$sFill=$('sFill');
+const $chain=$('chain'),$refGrid=$('refGrid');
+const $chat=$('chat'),$chatE=$('chatEmpty'),$mic=$('micBtn'),$docT=$('docTxt');
+const $sym=$('symBar'),$qB=$('qBadge'),$dbg=$('dbg'),$docSug=$('docSug');
+
+/* ══ STATE ══ */
+const signBuf=[];
+let confirmed=null,dbgOn=false;
+let signChain=[],lastSignT=0,symptoms=[],qMode=false;
+let isListening=false,recognition=null;
+let fpsT=performance.now(),fpsC=0,curFps=0;
+
+/* ══ SKELETON DRAW ══ */
+const CONN=[[0,1],[1,2],[2,3],[3,4],[5,6],[6,7],[7,8],[9,10],[10,11],[11,12],[13,14],[14,15],[15,16],[17,18],[18,19],[19,20],[0,5],[0,9],[0,13],[0,17],[5,9],[9,13],[13,17]];
+const TIPS=new Set([4,8,12,16,20]);
+
+function drawSkel(lm,states){
+  const W=$cv.width,H=$cv.height;
+  ctx.lineWidth=2;ctx.strokeStyle='rgba(56,189,248,0.25)';ctx.lineCap='round';
+  for(const[a,b]of CONN){ctx.beginPath();ctx.moveTo(lm[a].x*W,lm[a].y*H);ctx.lineTo(lm[b].x*W,lm[b].y*H);ctx.stroke()}
+  for(let i=0;i<21;i++){
+    const px=lm[i].x*W,py=lm[i].y*H,isTip=TIPS.has(i),r=isTip?5:3;
+    let col='rgba(255,255,255,0.5)';
+    if(isTip&&states){const fi=[4,8,12,16,20].indexOf(i);if(fi>=0)col=states[fi]?'rgba(52,211,153,0.85)':'rgba(239,68,68,0.45)'}
+    if(isTip){ctx.beginPath();ctx.arc(px,py,r+3,0,Math.PI*2);ctx.fillStyle=col.replace(/[\d.]+\)$/,'0.1)');ctx.fill()}
+    ctx.beginPath();ctx.arc(px,py,r,0,Math.PI*2);ctx.fillStyle=col;ctx.fill();
+  }
+}
+
+/* ══ FINGER GEOMETRY ══ */
+function fingerUp(lm,t,p){return(lm[p].y-lm[t].y)>CFG.FTHRESH}
+function thumbOut(lm){const dx=lm[4].x-lm[5].x,dy=lm[4].y-lm[5].y;return Math.sqrt(dx*dx+dy*dy)>CFG.TDIST}
+function getStates(lm){return[thumbOut(lm),fingerUp(lm,8,6),fingerUp(lm,12,10),fingerUp(lm,16,14),fingerUp(lm,20,18)]}
+function fp(s){return s.map(v=>v?'1':'0').join('')}
+
+function isThumbUp(lm){
+  if(lm[4].y-lm[2].y>-0.06)return false;
+  if(lm[8].y<lm[6].y||lm[12].y<lm[10].y||lm[16].y<lm[14].y||lm[20].y<lm[18].y)return false;
+  return lm[9].y<lm[0].y;
+}
+
+function isThumbDown(lm){
+  if(lm[4].y-lm[2].y<0.06)return false;
+  if(lm[8].y<lm[6].y||lm[12].y<lm[10].y||lm[16].y<lm[14].y||lm[20].y<lm[18].y)return false;
+  return true;
+}
+
+function indexOnlyForward(lm){
+  // index up alone — is it pointing forward (THROAT) or up (HEAD)?
+  // Compare tip Y vs wrist Y: small difference = forward pointing
+  const dy=Math.abs(lm[8].y-lm[0].y);
+  const dx=Math.abs(lm[8].x-lm[0].x);
+  return dx>dy*0.8; // more horizontal = THROAT, more vertical = HEAD
+}
+
+function allFiveSpread(lm){
+  // Distance between index tip and pinky tip
+  const dx=lm[8].x-lm[20].x,dy=lm[8].y-lm[20].y;
+  return Math.sqrt(dx*dx+dy*dy)>CFG.HELP_SPREAD;
+}
+
+function isSpock(lm,states){
+  // index+middle up, ring+pinky up, gap between them
+  if(!states[1]||!states[2]||!states[3]||!states[4])return false;
+  const midGap=Math.abs(lm[12].x-lm[16].x);
+  return midGap>0.08;
+}
+
+function classify(lm){
+  if(isThumbUp(lm))return'YES';
+  if(isThumbDown(lm))return'NO';
+  const s=getStates(lm),f=fp(s);
+  // Disambiguate 11111
+  if(f==='11111'){
+    if(allFiveSpread(lm))return'HELP';
+    return'HELLO';
+  }
+  // Spock = BACK
+  if(isSpock(lm,s))return'BACK';
+  // 01000 = index only — HEAD or THROAT
+  if(f==='01000'){
+    return indexOnlyForward(lm)?'THROAT':'HEAD';
+  }
+  // 01100 = index+middle — BLEEDING (tight) or MEDICINE (spread)
+  if(f==='01100'){
+    const dx=Math.abs(lm[8].x-lm[12].x);
+    return dx>0.04?'MEDICINE':'BLEEDING';
+  }
+  // 10001 = thumb+pinky — LEG or DIZZY (same shape; we pick DIZZY if recent SYMPTOM in chain)
+  if(f==='10001'){
+    const hasSym=signChain.some(s=>SIGNS[s]&&SIGNS[s].tag==='SYMPTOM');
+    return hasSym?'DIZZY':'LEG';
+  }
+  return FP_MAP[f]||'UNKNOWN';
+}
+
+/* ══ STABILITY BUFFER ══ */
+function pushConfirm(raw){
+  signBuf.push(raw);if(signBuf.length>CFG.BUFFER)signBuf.shift();
+  const v={};for(const s of signBuf)v[s]=(v[s]||0)+1;
+  let win=raw,mx=0;for(const[s,c]of Object.entries(v))if(c>mx){win=s;mx=c}
+  const conf=mx/signBuf.length;
+  $sFill.style.width=(conf*100)+'%';
+  if(conf>=CFG.CONFIRM&&win!==confirmed){
+    const prev=confirmed;confirmed=win;
+    updateSign(win);
+    if(win!=='UNKNOWN'&&win!=='NO_HAND'&&win!==prev)addToChain(win);
+  }
+  return{win,conf};
+}
+
+/* ══ CHAIN BUFFER ══ */
+function addToChain(sign){
+  const now=Date.now();
+  if(now-lastSignT>CHAIN_TIMEOUT&&signChain.length>0){signChain=[];}
+  if(signChain[signChain.length-1]!==sign)signChain.push(sign);
+  lastSignT=now;
+  updateChainUI();
+}
+
+setInterval(()=>{
+  if(!signChain.length)return;
+  if(Date.now()-lastSignT>CHAIN_TIMEOUT){processChain([...signChain]);signChain=[];updateChainUI();}
+},300);
+
+/* ══ SEMANTIC TAGS ══ */
+function semTag(s){const si=SIGNS[s];return si?si.tag:null;}
+
+/* ══ TEMPLATE MATCHER ══ */
+function processChain(chain){
+  const tags=chain.map(semTag);
+  const sorted=[...TEMPLATES].sort((a,b)=>b.p.length-a.p.length);
+  let match=null;
+  for(const t of sorted){
+    if(t.p.length!==tags.length)continue;
+    if(t.p.every((v,i)=>v===tags[i])){match=t;break}
+  }
+  let en,hi;
+  if(match){
+    en=match.en;hi=match.hi;
+    chain.forEach((s,i)=>{
+      en=en.replace(`{${i}}`,W_EN[s]||s.toLowerCase());
+      hi=hi.replace(`{${i}}`,W_HI[s]||s);
+    });
+  }else{
+    // Fallback: concatenate meaningful words (never blank)
+    en=chain.filter(s=>W_EN[s]).map(s=>W_EN[s]).join(' — ');
+    hi=chain.filter(s=>W_HI[s]).map(s=>W_HI[s]).join(' — ');
+    if(!en){en='[Unrecognised pattern]';hi='[अज्ञात]';}
+  }
+
+  // Question modifier
+  if(qMode){
+    if(en.startsWith('I have'))en='Do I have'+en.slice(6);
+    else if(en.startsWith('I need'))en='Do I need'+en.slice(6);
+    else en='Is it: '+en;
+    en=en.replace(/[.!]$/,'')+'?';
+    hi='क्या '+hi.replace(/[।!?]$/,'')+'?';
+    qMode=false;$qB.classList.remove('on');
+  }
+
+  // Track symptoms
+  const syms=chain.filter(s=>{const t=semTag(s);return t==='SYMPTOM'||t==='BODY_PART';});
+  if(syms.length){
+    const k=syms.map(s=>W_EN[s]).filter(Boolean).join(' ');
+    if(k&&!symptoms.includes(k)){symptoms.push(k);updateSymptoms();}
+  }
+
+  addBubble(en,hi,'pat');
+  speak(en);
+  showFollowUps(chain,tags);
+}
+
+/* ══ FOLLOW-UPS ══ */
+function showFollowUps(chain,tags){
+  let key=null;
+  if(tags.includes('SYMPTOM')&&tags.includes('BODY_PART'))key='PAIN_BODY';
+  else if(chain.includes('VOMIT'))key='VOMIT';
+  else if(chain.includes('FEVER'))key='FEVER';
+  else if(chain.includes('BREATHLESS'))key='BREATHLESS';
+  else if(tags.includes('URGENT'))key='URGENT';
+  else if(tags[0]==='AFFIRM')key='YES';
+  else if(tags[0]==='NEGATION')key='NO';
+  else if(tags.includes('SYMPTOM'))key='SYMPTOM';
+  else{$docSug.innerHTML='';return;}
+  const qs=(FOLLOW_UPS[key]||[]);
+  $docSug.innerHTML=qs.map(q=>`<span class="sug-chip" data-hi="${q.hi}" onclick="askFollowUp(this)">${q.en}</span>`).join('');
+}
+
+function askFollowUp(el){
+  addBubble(el.textContent,el.dataset.hi,'doc');
+  speak(el.textContent);
+  $docSug.innerHTML='';
+}
+
+/* ══ SPEECH ══ */
+function speak(t){if(!('speechSynthesis' in window)||!t)return;speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.rate=0.9;speechSynthesis.speak(u);}
+
+/* ══ CHAT ══ */
+function addBubble(en,hi,side){
+  if($chatE)$chatE.style.display='none';
+  const b=document.createElement('div');b.className='bub '+side;
+  const who=side==='pat'?'Patient':'Doctor';
+  let html=`<div class="bub-who">${who}</div><div class="bub-en">${en}</div>`;
+  if(hi)html+=`<div class="bub-hi">${hi}</div>`;
+  b.innerHTML=html;$chat.appendChild(b);$chat.scrollTop=$chat.scrollHeight;
+}
+
+/* ══ UI UPDATES ══ */
+function updateSign(name){
+  if(name==='NO_HAND'){$sE.textContent='🤚';$sN.textContent='No hand';$sN.style.color='var(--dim)';$sSub.textContent='show hand to camera';$cbS.classList.remove('vis');hlTile(null);return}
+  if(name==='UNKNOWN'){$sE.textContent='❓';$sN.textContent='Unknown';$sN.style.color='rgba(255,255,255,0.15)';$sSub.textContent='make a defined gesture';$cbS.classList.remove('vis');hlTile(null);return}
+  const si=SIGNS[name];if(!si)return;
+  $sE.textContent=si.emoji;$sN.textContent=name.replace(/_/g,' ');$sN.style.color=si.color;
+  $sSub.textContent=si.desc;$sFill.style.background=si.color;
+  $cbS.textContent=name.replace(/_/g,' ');$cbS.classList.add('vis');
+  $sE.classList.remove('pop');void $sE.offsetWidth;$sE.classList.add('pop');
+  setTimeout(()=>$sE.classList.remove('pop'),250);
+  hlTile(name);
+}
+
+function hlTile(name){document.querySelectorAll('.ref-tile').forEach(e=>e.classList.toggle('active',e.dataset.s===name))}
+
+function updateChainUI(){
+  if(!signChain.length){$chain.className='chain';$chain.innerHTML='<span class="ch-empty">chain idle — start signing</span>';return}
+  $chain.className='chain active';
+  $chain.innerHTML=signChain.map((s,i)=>{
+    const si=SIGNS[s];const em=si?si.emoji:'';
+    return(i>0?'<span class="ch-sep">+</span>':'')+`<span class="ch-pill">${em} ${(W_EN[s]||s).toUpperCase()}</span>`;
+  }).join('');
+}
+
+function updateSymptoms(){
+  if(!symptoms.length){$sym.classList.add('empty');return}
+  $sym.classList.remove('empty');
+  $sym.innerHTML='<span class="sym-l">Symptoms noted:</span>'+symptoms.map(s=>`<span class="sym-i">${s}</span>`).join('');
+}
+
+function renderRefGrid(){
+  $refGrid.innerHTML=Object.entries(SIGNS).map(([n,si])=>`<div class="ref-tile" data-s="${n}" style="--col:${si.color}">${si.emoji} ${n.replace(/_/g,' ')}</div>`).join('');
+}
+
+/* ══ FPS ══ */
+function trackFps(){fpsC++;const now=performance.now();if(now-fpsT>=1000){curFps=fpsC;$fps.textContent=curFps+' FPS';$fps.style.color=curFps>=20?'#34d399':curFps>=12?'#fbbf24':'#f43f5e';fpsC=0;fpsT=now}}
+
+/* ══ DEMO KEYBOARD MODE ══ */
+const DEMO_KEYS={
+  '1':'PAIN','2':'FEVER','3':'VOMIT','4':'BREATHLESS','5':'WEAKNESS','6':'SWELLING','7':'BLEEDING','8':'DIZZY',
+  'q':'HEAD','w':'CHEST','e':'STOMACH','r':'BACK','t':'LEG',
+  'a':'SINCE_MORNING','s':'SINCE_DAYS',
+  'z':'SEVERE',
+  'y':'YES','n':'NO',
+  'm':'MEDICINE','u':'WATER','h':'HELP','x':'EMERGENCY','o':'HELLO',
+};
+
+document.addEventListener('keydown',(e)=>{
+  if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA')return;
+  if(e.key==='d'||e.key==='D'){dbgOn=!dbgOn;$dbg.classList.toggle('vis',dbgOn);return}
+  if(e.key==='?'){qMode=!qMode;$qB.classList.toggle('on',qMode);return}
+  const sign=DEMO_KEYS[e.key];
+  if(sign&&SIGNS[sign]){e.preventDefault();confirmed=sign;updateSign(sign);addToChain(sign);}
+});
+
+/* ══ MEDIAPIPE ══ */
+const hands=new Hands({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`});
+hands.setOptions({maxNumHands:1,modelComplexity:1,minDetectionConfidence:0.65,minTrackingConfidence:0.65});
+
+hands.onResults((res)=>{
+  // Match canvas to video actual size
+  if($cv.width!==$v.videoWidth&&$v.videoWidth>0){$cv.width=$v.videoWidth;$cv.height=$v.videoHeight}
+  ctx.clearRect(0,0,$cv.width,$cv.height);
+  if(!res.multiHandLandmarks||!res.multiHandLandmarks.length){pushConfirm('NO_HAND');trackFps();return}
+  const lm=res.multiHandLandmarks[0];
+  const states=getStates(lm),raw=classify(lm);
+  const{win,conf}=pushConfirm(raw);
+  drawSkel(lm,states);trackFps();
+  if(dbgOn)$dbg.innerHTML=[`FP:${fp(states)}`,`Raw:${raw}`,`Conf:${confirmed}`,`Agree:${(conf*100)|0}%`,`Chain:[${signChain.join(',')}]`,`Q:${qMode}`].join('<br>');
+});
+
+const camera=new Camera($v,{onFrame:async()=>{await hands.send({image:$v})},width:640,height:480});
+
+/* ══ DOCTOR MIC ══ */
+const SpeechRec=window.SpeechRecognition||window.webkitSpeechRecognition;
+function toggleMic(){
+  if(!SpeechRec){$docT.textContent='Not supported in this browser';return}
+  if(isListening){recognition.stop();isListening=false;$mic.classList.remove('on');$docT.textContent='Click 🎤 for doctor to speak...';return}
+  recognition=new SpeechRec();recognition.continuous=true;recognition.interimResults=true;recognition.lang='en-US';
+  recognition.onresult=(e)=>{
+    let interim='',final='';
+    for(let i=e.resultIndex;i<e.results.length;i++){if(e.results[i].isFinal)final+=e.results[i][0].transcript;else interim+=e.results[i][0].transcript;}
+    if(final){addBubble(final.trim(),null,'doc');$docT.textContent='Listening...';}
+    else $docT.textContent=interim||'Listening...';
+  };
+  recognition.onerror=()=>{isListening=false;$mic.classList.remove('on')};
+  recognition.onend=()=>{if(isListening)try{recognition.start()}catch(e){}};
+  recognition.start();isListening=true;$mic.classList.add('on');$docT.textContent='Listening...';
+}
+$mic.addEventListener('click',toggleMic);
+
+/* ══ START + GUIDE ══ */
+$('startBtn').addEventListener('click',()=>{
+  $('welcome').classList.add('hidden');
+  $('guideOverlay').classList.remove('hidden');
+});
+
+$('guideOk').addEventListener('click',()=>{
+  $('guideOverlay').classList.add('hidden');
+  $('app').classList.remove('hidden');
+  camera.start();
+  renderRefGrid();
+  updateSign('NO_HAND');
+  if('speechSynthesis' in window){const u=new SpeechSynthesisUtterance('');speechSynthesis.speak(u);}
+});
+
+$('guideBtn').addEventListener('click',()=>{
+  $('guideOverlay').classList.remove('hidden');
+});
+</script>
+</body>
+</html>
