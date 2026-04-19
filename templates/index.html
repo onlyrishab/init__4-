@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SignSetu — Medical Interpretation</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0a0a0a; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #fff; height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+
+  /* ── TOP BAR ── */
+  .topbar { display: flex; align-items: center; gap: 8px; padding: 10px 16px; background: rgba(0,0,0,0.6); border-bottom: 1px solid rgba(255,255,255,0.08); flex-shrink: 0; }
+  .topbar-logo { font-size: 14px; font-weight: 600; letter-spacing: .04em; }
+  .topbar-logo span { color: #4ade80; }
+  .gloss-label { font-size: 9px; color: rgba(255,255,255,0.35); text-transform: uppercase; letter-spacing: .08em; margin-left: 12px; }
+  .pills-row { display: flex; align-items: center; gap: 5px; flex: 1; flex-wrap: wrap; }
+  .pill { display: flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 99px; border: 1px solid rgba(255,255,255,0.15); background: rgba(0,0,0,0.5); transition: all .3s; }
+  .pill .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .pill .lbl { font-size: 11px; font-weight: 500; letter-spacing: .03em; }
+  .pill .src-tag { font-size: 9px; color: rgba(255,255,255,0.4); }
+  .dot-sign-new { background: #fbbf24; }
+  .dot-sign-old { background: #4ade80; }
+  .dot-sign-older { background: rgba(255,255,255,0.3); }
+  .dot-tap { background: #60a5fa; }
+  .dot-quick { background: #f472b6; }
+  .topbar-clear { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); color: rgba(255,255,255,0.7); border-radius: 6px; padding: 3px 10px; font-size: 11px; cursor: pointer; margin-left: auto; }
+  .topbar-clear:hover { background: rgba(255,255,255,0.15); }
+
+  /* ── MAIN LAYOUT ── */
+  .main { display: flex; flex: 1; overflow: hidden; }
+
+  /* ── CAMERA PANEL ── */
+  .cam-wrap { position: relative; flex: 1; background: #000; overflow: hidden; }
+  #stream { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+  /* ── SUBTITLE ── */
+  .subtitle { position: absolute; top: 14px; left: 14px; right: 14px; background: rgba(0,0,0,0.75); border-radius: 10px; padding: 8px 14px; display: flex; align-items: center; gap: 10px; opacity: 0; transition: opacity .4s; pointer-events: none; }
+  .subtitle.visible { opacity: 1; }
+  .subtitle-spinner { width: 18px; height: 18px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.2); border-top-color: #fff; flex-shrink: 0; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinning { animation: spin .8s linear infinite; }
+  .subtitle-text { font-size: 15px; font-weight: 500; line-height: 1.4; }
+
+  /* ── CONFIDENCE CARD ── */
+  .conf-card { position: absolute; bottom: 52px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.82); border-radius: 12px; padding: 8px 18px 10px; min-width: 160px; text-align: center; opacity: 0; transition: opacity .25s; pointer-events: none; }
+  .conf-card.visible { opacity: 1; }
+  .conf-token-name { font-size: 20px; font-weight: 700; letter-spacing: .06em; margin-bottom: 3px; }
+  .conf-status-text { font-size: 10px; color: rgba(255,255,255,0.5); margin-bottom: 6px; }
+  .conf-bar-track { height: 3px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden; }
+  .conf-bar-fill { height: 100%; border-radius: 2px; transition: width .1s linear, background .3s; }
+
+  /* ── PIPELINE STRIP ── */
+  .pipeline { position: absolute; bottom: 0; left: 0; right: 0; display: flex; background: rgba(0,0,0,0.65); border-top: 1px solid rgba(255,255,255,0.07); }
+  .pipe-stage { flex: 1; padding: 7px 4px 6px; text-align: center; transition: background .3s; }
+  .pipe-stage.active { background: rgba(255,255,255,0.07); }
+  .pipe-stage-name { font-size: 9px; color: rgba(255,255,255,0.3); line-height: 1.4; }
+  .pipe-stage.active .pipe-stage-name { color: rgba(255,255,255,0.9); font-weight: 600; }
+  .pipe-dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,0.1); margin: 4px auto 0; transition: background .3s; }
+  .pipe-dot.done { background: #fff; }
+  .pipe-dot.pulsing { background: #fff; animation: pp 1s ease-in-out infinite; }
+  @keyframes pp { 0%,100% { opacity: 1; } 50% { opacity: .2; } }
+
+  /* ── SIDE PANEL ── */
+  .side { width: 280px; flex-shrink: 0; background: #111; border-left: 1px solid rgba(255,255,255,0.08); display: flex; flex-direction: column; overflow-y: auto; }
+  .side-section { border-bottom: 1px solid rgba(255,255,255,0.07); }
+  .side-header { padding: 8px 12px; font-size: 9px; font-weight: 600; color: rgba(255,255,255,0.3); text-transform: uppercase; letter-spacing: .1em; background: rgba(255,255,255,0.03); }
+
+  /* ── QUICK ACTIONS ── */
+  .quick-list { padding: 10px; display: flex; flex-direction: column; gap: 7px; }
+  .qa { padding: 9px 12px; border-radius: 9px; cursor: pointer; border: none; text-align: left; font-family: inherit; transition: opacity .15s; }
+  .qa:hover { opacity: .85; }
+  .qa:active { transform: scale(.98); }
+  .qa-title { font-size: 12px; font-weight: 600; }
+  .qa-sub { font-size: 10px; opacity: .65; margin-top: 2px; }
+  .qa-emergency { background: #2d0a0a; border: 1px solid #7f1d1d; color: #fca5a5; }
+  .qa-chest { background: #1a1200; border: 1px solid #713f12; color: #fcd34d; }
+  .qa-confirm { background: #0a1a2d; border: 1px solid #1e3a5f; color: #93c5fd; }
+  .qa-deny { background: #1a0a1a; border: 1px solid #6b21a8; color: #d8b4fe; }
+
+  /* ── TAP TOKEN CATEGORIES ── */
+  .cat-header { padding: 6px 10px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; cursor: pointer; display: flex; align-items: center; justify-content: space-between; user-select: none; }
+  .cat-header:hover { filter: brightness(1.2); }
+  .cat-header .chevron { font-size: 8px; transition: transform .2s; }
+  .cat-header .chevron.collapsed { transform: rotate(-90deg); }
+  .cat-symptom { color: #f87171; background: rgba(248,113,113,0.06); }
+  .cat-location { color: #60a5fa; background: rgba(96,165,250,0.06); }
+  .cat-severity { color: #fbbf24; background: rgba(251,191,36,0.06); }
+  .cat-duration { color: #a78bfa; background: rgba(167,139,250,0.06); }
+  .cat-need { color: #34d399; background: rgba(52,211,153,0.06); }
+  .cat-intent { color: #f472b6; background: rgba(244,114,182,0.06); }
+  .cat-control { color: rgba(255,255,255,0.5); background: rgba(255,255,255,0.03); }
+  .cat-question { color: #38bdf8; background: rgba(56,189,248,0.06); }
+
+  /* ── TAP GRID ── */
+  .tap-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; padding: 6px 8px; }
+  .tap-btn { padding: 6px 4px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03); color: #fff; cursor: pointer; font-family: inherit; font-size: 10px; font-weight: 500; text-align: center; transition: all .12s; }
+  .tap-btn:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.2); }
+  .tap-btn:active { transform: scale(.95); }
+
+  /* ── LEGEND + SPEAK ── */
+  .legend { padding: 8px 12px; display: flex; gap: 10px; flex-wrap: wrap; }
+  .leg { display: flex; align-items: center; gap: 4px; font-size: 10px; color: rgba(255,255,255,0.4); }
+  .leg-dot { width: 7px; height: 7px; border-radius: 50%; }
+  .speak-row { padding: 10px; }
+  .speak-btn { width: 100%; padding: 9px; border-radius: 9px; background: rgba(74,222,128,0.1); border: 1px solid rgba(74,222,128,0.3); color: #4ade80; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; }
+  .speak-btn:hover { background: rgba(74,222,128,0.18); }
+
+  /* ── WAITING STATE ── */
+  .waiting-msg { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 12px; color: rgba(255,255,255,0.15); letter-spacing: .06em; pointer-events: none; }
+
+  /* ── SIGN GUIDE MODAL ── */
+  .guide-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); backdrop-filter: blur(8px); z-index: 1000; display: none; align-items: center; justify-content: center; }
+  .guide-overlay.visible { display: flex; }
+  .guide-modal { background: #141414; border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; width: 90%; max-width: 820px; max-height: 85vh; overflow-y: auto; padding: 0; box-shadow: 0 24px 64px rgba(0,0,0,0.6); }
+  .guide-modal::-webkit-scrollbar { width: 6px; }
+  .guide-modal::-webkit-scrollbar-track { background: transparent; }
+  .guide-modal::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
+
+  .guide-top { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px 16px; border-bottom: 1px solid rgba(255,255,255,0.08); position: sticky; top: 0; background: #141414; z-index: 1; border-radius: 16px 16px 0 0; }
+  .guide-title { font-size: 18px; font-weight: 700; letter-spacing: .02em; }
+  .guide-title span { color: #4ade80; }
+  .guide-subtitle { font-size: 11px; color: rgba(255,255,255,0.4); margin-top: 2px; }
+  .guide-close { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12); color: #fff; border-radius: 8px; padding: 6px 14px; font-size: 12px; cursor: pointer; font-family: inherit; transition: background .15s; }
+  .guide-close:hover { background: rgba(255,255,255,0.15); }
+
+  .guide-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 20px 24px 24px; }
+  @media (max-width: 700px) { .guide-grid { grid-template-columns: 1fr; } }
+
+  .sign-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 12px; padding: 16px; display: flex; gap: 14px; transition: border-color .2s, background .2s; }
+  .sign-card:hover { border-color: rgba(255,255,255,0.15); background: rgba(255,255,255,0.05); }
+
+  .sign-icon { width: 56px; height: 56px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 28px; flex-shrink: 0; }
+
+  .sign-info { flex: 1; min-width: 0; }
+  .sign-name { font-size: 14px; font-weight: 700; letter-spacing: .04em; margin-bottom: 4px; }
+  .sign-desc { font-size: 11px; color: rgba(255,255,255,0.6); line-height: 1.5; }
+  .sign-steps { margin-top: 6px; padding: 0; list-style: none; }
+  .sign-steps li { font-size: 10px; color: rgba(255,255,255,0.45); padding: 2px 0; padding-left: 14px; position: relative; line-height: 1.4; }
+  .sign-steps li::before { content: ''; position: absolute; left: 0; top: 7px; width: 5px; height: 5px; border-radius: 50%; }
+
+  .sign-tag { display: inline-block; font-size: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; padding: 2px 6px; border-radius: 4px; margin-top: 6px; }
+
+  /* card color themes */
+  .sc-red .sign-icon    { background: rgba(239,68,68,0.12); }
+  .sc-red .sign-name    { color: #fca5a5; }
+  .sc-red .sign-steps li::before { background: #f87171; }
+  .sc-red .sign-tag     { background: rgba(239,68,68,0.15); color: #fca5a5; }
+
+  .sc-green .sign-icon  { background: rgba(74,222,128,0.12); }
+  .sc-green .sign-name  { color: #4ade80; }
+  .sc-green .sign-steps li::before { background: #4ade80; }
+  .sc-green .sign-tag   { background: rgba(74,222,128,0.15); color: #4ade80; }
+
+  .sc-blue .sign-icon   { background: rgba(96,165,250,0.12); }
+  .sc-blue .sign-name   { color: #93c5fd; }
+  .sc-blue .sign-steps li::before { background: #60a5fa; }
+  .sc-blue .sign-tag    { background: rgba(96,165,250,0.15); color: #93c5fd; }
+
+  .sc-amber .sign-icon  { background: rgba(251,191,36,0.12); }
+  .sc-amber .sign-name  { color: #fcd34d; }
+  .sc-amber .sign-steps li::before { background: #fbbf24; }
+  .sc-amber .sign-tag   { background: rgba(251,191,36,0.15); color: #fcd34d; }
+
+  .sc-purple .sign-icon { background: rgba(167,139,250,0.12); }
+  .sc-purple .sign-name { color: #c4b5fd; }
+  .sc-purple .sign-steps li::before { background: #a78bfa; }
+  .sc-purple .sign-tag  { background: rgba(167,139,250,0.15); color: #c4b5fd; }
+
+  .sc-pink .sign-icon   { background: rgba(244,114,182,0.12); }
+  .sc-pink .sign-name   { color: #f9a8d4; }
+  .sc-pink .sign-steps li::before { background: #f472b6; }
+  .sc-pink .sign-tag    { background: rgba(244,114,182,0.15); color: #f9a8d4; }
+
+  .guide-footer { padding: 16px 24px; border-top: 1px solid rgba(255,255,255,0.07); text-align: center; }
+  .guide-footer p { font-size: 10px; color: rgba(255,255,255,0.3); line-height: 1.6; }
+  .guide-kbd { display: inline-block; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12); border-radius: 4px; padding: 1px 5px; font-size: 9px; font-family: monospace; color: rgba(255,255,255,0.5); }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="topbar-logo">Sign<span>Setu</span></div>
+  <span class="gloss-label">tokens</span>
+  <div class="pills-row" id="pills-row"></div>
+  <button class="topbar-clear" onclick="clearAll()">Clear</button>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- CAMERA -->
+  <div class="cam-wrap">
+    <img id="stream" src="/video" alt="camera">
+    <div class="waiting-msg" id="waiting-msg">WAITING FOR SIGNER</div>
+
+    <!-- subtitle -->
+    <div class="subtitle" id="subtitle">
+      <div class="subtitle-spinner" id="sub-spinner"></div>
+      <div class="subtitle-text" id="sub-text"></div>
+    </div>
+
+    <!-- confidence card -->
+    <div class="conf-card" id="conf-card">
+      <div class="conf-token-name" id="conf-token-name">—</div>
+      <div class="conf-status-text" id="conf-status-text"></div>
+      <div class="conf-bar-track">
+        <div class="conf-bar-fill" id="conf-bar-fill" style="width:0%"></div>
+      </div>
+    </div>
+
+    <!-- pipeline strip -->
+    <div class="pipeline" id="pipeline"></div>
+  </div>
+
+  <!-- SIDE PANEL -->
+  <div class="side">
+
+    <div class="side-section">
+      <div class="side-header">Quick actions</div>
+      <div class="quick-list">
+        <button class="qa qa-emergency" onclick="quickAction(['HELP'], 'Emergency — I need help immediately.')">
+          <div class="qa-title">Emergency / Help</div>
+          <div class="qa-sub">Speaks immediately</div>
+        </button>
+        <button class="qa qa-chest" onclick="quickAction(['CHEST','PAIN'], 'I have pain in my chest.')">
+          <div class="qa-title">Chest pain</div>
+          <div class="qa-sub">CHEST + PAIN</div>
+        </button>
+        <button class="qa qa-confirm" onclick="quickAction(['YES'], 'Yes.')">
+          <div class="qa-title">Yes / confirm</div>
+          <div class="qa-sub">Confirms question</div>
+        </button>
+        <button class="qa qa-deny" onclick="quickAction(['NO'], 'No.')">
+          <div class="qa-title">No / deny</div>
+          <div class="qa-sub">Denies question</div>
+        </button>
+      </div>
+    </div>
+
+    <div class="side-section" id="token-categories">
+      <div class="side-header">Tap tokens · <span id="token-count"></span></div>
+      <!-- categories built by JS -->
+    </div>
+
+    <div class="side-section">
+      <div class="legend">
+        <div class="leg"><div class="leg-dot" style="background:#4ade80"></div>sign</div>
+        <div class="leg"><div class="leg-dot" style="background:#60a5fa"></div>tap</div>
+        <div class="leg"><div class="leg-dot" style="background:#f472b6"></div>quick</div>
+      </div>
+    </div>
+
+    <div class="speak-row">
+      <button class="speak-btn" onclick="toggleGuide()" style="background:rgba(251,191,36,0.1);border-color:rgba(251,191,36,0.3);color:#fbbf24;margin-bottom:6px">📖 Sign Guide (G)</button>
+      <button class="speak-btn" onclick="speakCurrent()" style="margin-bottom:6px">Speak current sentence</button>
+      <button class="speak-btn" onclick="submitGesture()" style="background:rgba(96,165,250,0.1);border-color:rgba(96,165,250,0.3);color:#60a5fa;margin-bottom:6px">Submit detected gesture (Space)</button>
+      <button class="speak-btn" onclick="toggleDebug()" style="background:rgba(255,255,255,0.05);border-color:rgba(255,255,255,0.15);color:rgba(255,255,255,0.5);font-size:10px">Toggle gesture scores</button>
+    </div>
+
+    <!-- debug panel -->
+    <div id="debug-panel" style="display:none;padding:10px 12px;border-top:1px solid rgba(255,255,255,0.07)">
+      <div style="font-size:9px;color:rgba(255,255,255,0.3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Live gesture scores</div>
+      <div id="debug-scores"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- SIGN GUIDE MODAL -->
+<div class="guide-overlay" id="guide-overlay" onclick="if(event.target===this)toggleGuide()">
+  <div class="guide-modal">
+    <div class="guide-top">
+      <div>
+        <div class="guide-title">📖 Sign <span>Guide</span></div>
+        <div class="guide-subtitle">20 gestures recognized by the camera · hold each sign steady for ~1 second</div>
+      </div>
+      <button class="guide-close" onclick="toggleGuide()">Close <span class="guide-kbd">G</span></button>
+    </div>
+
+    <div class="guide-grid">
+
+      <!-- STOP -->
+      <div class="sign-card sc-red">
+        <div class="sign-icon">🖐️</div>
+        <div class="sign-info">
+          <div class="sign-name">STOP</div>
+          <div class="sign-desc">Open palm facing the camera</div>
+          <ul class="sign-steps">
+            <li>Raise your hand to chest/face level</li>
+            <li>Spread all 5 fingers wide open</li>
+            <li>Face your palm directly toward the camera</li>
+            <li>Hold still for ~1 second</li>
+          </ul>
+          <div class="sign-tag">control · open palm</div>
+        </div>
+      </div>
+
+      <!-- HELP -->
+      <div class="sign-card sc-red">
+        <div class="sign-icon">👍</div>
+        <div class="sign-info">
+          <div class="sign-name">HELP</div>
+          <div class="sign-desc">Thumbs up — triggers emergency</div>
+          <ul class="sign-steps">
+            <li>Make a fist with your hand</li>
+            <li>Extend only your thumb upward</li>
+            <li>Keep all other fingers curled in</li>
+            <li>Hold steady — speaks immediately</li>
+          </ul>
+          <div class="sign-tag">intent · thumbs up</div>
+        </div>
+      </div>
+
+      <!-- YES -->
+      <div class="sign-card sc-green">
+        <div class="sign-icon">✊</div>
+        <div class="sign-info">
+          <div class="sign-name">YES</div>
+          <div class="sign-desc">Fist + nod (vertical shake)</div>
+          <ul class="sign-steps">
+            <li>Close all fingers into a tight fist</li>
+            <li>Move your fist up and down (nodding motion)</li>
+            <li>Keep the motion steady, 2-3 nods</li>
+            <li>Fist alone = partial detection</li>
+          </ul>
+          <div class="sign-tag">intent · fist + vertical motion</div>
+        </div>
+      </div>
+
+      <!-- NO -->
+      <div class="sign-card sc-purple">
+        <div class="sign-icon">✌️</div>
+        <div class="sign-info">
+          <div class="sign-name">NO</div>
+          <div class="sign-desc">Peace sign + side-to-side shake</div>
+          <ul class="sign-steps">
+            <li>Extend index and middle fingers (peace/V sign)</li>
+            <li>Curl ring finger and pinky down</li>
+            <li>Shake your hand left-right (waving "no")</li>
+            <li>Keep fingers extended while shaking</li>
+          </ul>
+          <div class="sign-tag">intent · V-sign + lateral motion</div>
+        </div>
+      </div>
+
+      <!-- HEAD -->
+      <div class="sign-card sc-blue">
+        <div class="sign-icon">☝️</div>
+        <div class="sign-info">
+          <div class="sign-name">HEAD</div>
+          <div class="sign-desc">Point upward near top of frame</div>
+          <ul class="sign-steps">
+            <li>Extend only your index finger</li>
+            <li>Keep all other fingers curled</li>
+            <li>Point upward toward the top of the camera frame</li>
+            <li>Fingertip should be in the upper 40% of the screen</li>
+          </ul>
+          <div class="sign-tag">location · index up + high position</div>
+        </div>
+      </div>
+
+      <!-- FEVER -->
+      <div class="sign-card sc-amber">
+        <div class="sign-icon">🤚</div>
+        <div class="sign-info">
+          <div class="sign-name">FEVER</div>
+          <div class="sign-desc">Open palm held high (forehead level)</div>
+          <ul class="sign-steps">
+            <li>Open your hand with all fingers spread</li>
+            <li>Raise hand to forehead/face level</li>
+            <li>Wrist should be in the upper 45% of the frame</li>
+            <li>Like checking temperature on your forehead</li>
+          </ul>
+          <div class="sign-tag">symptom · open palm + high position</div>
+        </div>
+      </div>
+
+      <!-- CHEST -->
+      <div class="sign-card sc-blue">
+        <div class="sign-icon">🫱</div>
+        <div class="sign-info">
+          <div class="sign-name">CHEST</div>
+          <div class="sign-desc">Flat palm at chest height</div>
+          <ul class="sign-steps">
+            <li>Open your hand with fingers spread</li>
+            <li>Place palm at mid-chest level</li>
+            <li>Wrist between 30-65% height in the frame</li>
+            <li>Like placing hand over your heart area</li>
+          </ul>
+          <div class="sign-tag">location · open palm + mid position</div>
+        </div>
+      </div>
+
+      <!-- PAIN -->
+      <div class="sign-card sc-red">
+        <div class="sign-icon">✊</div>
+        <div class="sign-info">
+          <div class="sign-name">PAIN</div>
+          <div class="sign-desc">Closed fist at chest/belly zone</div>
+          <ul class="sign-steps">
+            <li>Make a tight fist (all fingers curled)</li>
+            <li>Hold at chest or belly level (don't move)</li>
+            <li>Wrist between 30-75% height in the frame</li>
+            <li>Don't nod — that triggers YES instead</li>
+          </ul>
+          <div class="sign-tag">symptom · fist + mid position · stay still</div>
+        </div>
+      </div>
+
+      <!-- STOMACH -->
+      <div class="sign-card sc-green">
+        <div class="sign-icon">🫳</div>
+        <div class="sign-info">
+          <div class="sign-name">STOMACH</div>
+          <div class="sign-desc">Flat palm held low (belly level)</div>
+          <ul class="sign-steps">
+            <li>Open your hand with fingers spread</li>
+            <li>Hold palm low, near stomach/waist level</li>
+            <li>Wrist should be below 58% of the frame</li>
+            <li>Like resting hand on your belly</li>
+          </ul>
+          <div class="sign-tag">location · open palm + low position</div>
+        </div>
+      </div>
+
+      <!-- NAUSEA -->
+      <div class="sign-card sc-pink">
+        <div class="sign-icon">🌀</div>
+        <div class="sign-info">
+          <div class="sign-name">NAUSEA</div>
+          <div class="sign-desc">Hand low + circular motion</div>
+          <ul class="sign-steps">
+            <li>Place hand low near your stomach</li>
+            <li>Move your hand in slow circles</li>
+            <li>Make at least 1 full circular rotation</li>
+            <li>Keep the motion smooth and continuous</li>
+          </ul>
+          <div class="sign-tag">symptom · low position + circular motion</div>
+        </div>
+      </div>
+
+      <!-- WATER -->
+      <div class="sign-card sc-green">
+        <div class="sign-icon">💧</div>
+        <div class="sign-info">
+          <div class="sign-name">WATER</div>
+          <div class="sign-desc">W-sign held near the mouth</div>
+          <ul class="sign-steps">
+            <li>Extend index, middle, and ring fingers (W shape)</li>
+            <li>Curl thumb and pinky inward</li>
+            <li>Hold the sign near your chin/mouth</li>
+            <li>Hold steady for ~1 second</li>
+          </ul>
+          <div class="sign-tag">need · W-sign + high position</div>
+        </div>
+      </div>
+
+      <!-- COUGH -->
+      <div class="sign-card sc-amber">
+        <div class="sign-icon">😷</div>
+        <div class="sign-info">
+          <div class="sign-name">COUGH</div>
+          <div class="sign-desc">Fist held directly over the mouth</div>
+          <ul class="sign-steps">
+            <li>Make a tight fist</li>
+            <li>Place your fist directly in front of your mouth</li>
+            <li>Ensure the fist is centered horizontally</li>
+            <li>Hold steady</li>
+          </ul>
+          <div class="sign-tag">symptom · fist + mouth level</div>
+        </div>
+      </div>
+
+      <!-- DIZZY -->
+      <div class="sign-card sc-amber">
+        <div class="sign-icon">💫</div>
+        <div class="sign-info">
+          <div class="sign-name">DIZZY</div>
+          <div class="sign-desc">Hand circling near the head</div>
+          <ul class="sign-steps">
+            <li>Raise your hand near the side of your head</li>
+            <li>Make slow, continuous circular motions</li>
+            <li>Ensure at least 1 full rotation</li>
+          </ul>
+          <div class="sign-tag">symptom · high position + circular motion</div>
+        </div>
+      </div>
+
+      <!-- THROAT -->
+      <div class="sign-card sc-blue">
+        <div class="sign-icon">🗣️</div>
+        <div class="sign-info">
+          <div class="sign-name">THROAT</div>
+          <div class="sign-desc">Index pointing horizontally across neck</div>
+          <ul class="sign-steps">
+            <li>Extend only your index finger</li>
+            <li>Point horizontally across your neck/throat area</li>
+            <li>Keep the hand centered and steady</li>
+          </ul>
+          <div class="sign-tag">location · index + neck level</div>
+        </div>
+      </div>
+
+      <!-- EYE -->
+      <div class="sign-card sc-blue">
+        <div class="sign-icon">👁️</div>
+        <div class="sign-info">
+          <div class="sign-name">EYE</div>
+          <div class="sign-desc">Index finger near the eye</div>
+          <ul class="sign-steps">
+            <li>Extend only your index finger</li>
+            <li>Point very high, near your eye level</li>
+            <li>Hold steady</li>
+          </ul>
+          <div class="sign-tag">location · index + very high position</div>
+        </div>
+      </div>
+
+      <!-- THANK YOU -->
+      <div class="sign-card sc-green">
+        <div class="sign-icon">🙏</div>
+        <div class="sign-info">
+          <div class="sign-name">THANK YOU</div>
+          <div class="sign-desc">Flat palm moving outward/downward</div>
+          <ul class="sign-steps">
+            <li>Start with an open palm near your chin</li>
+            <li>Move the hand smoothly outward and downward</li>
+            <li>Keep fingers fully extended</li>
+          </ul>
+          <div class="sign-tag">intent · open palm + downward motion</div>
+        </div>
+      </div>
+
+      <!-- DOCTOR -->
+      <div class="sign-card sc-green">
+        <div class="sign-icon">🩺</div>
+        <div class="sign-info">
+          <div class="sign-name">DOCTOR</div>
+          <div class="sign-desc">V-sign held steady at chest level</div>
+          <ul class="sign-steps">
+            <li>Extend index and middle fingers (V shape)</li>
+            <li>Hold steady near your mid-chest</li>
+            <li>Do not shake (shaking NO uses V-sign laterally)</li>
+          </ul>
+          <div class="sign-tag">need · V-sign + mid position</div>
+        </div>
+      </div>
+
+      <!-- SEVERE -->
+      <div class="sign-card sc-amber">
+        <div class="sign-icon">⚡</div>
+        <div class="sign-info">
+          <div class="sign-name">SEVERE</div>
+          <div class="sign-desc">Tight fist shaking rapidly side-to-side</div>
+          <ul class="sign-steps">
+            <li>Make a tight fist</li>
+            <li>Shake it rapidly left and right</li>
+            <li>Keep the motion quick and continuous</li>
+          </ul>
+          <div class="sign-tag">severity · fist + fast lateral motion</div>
+        </div>
+      </div>
+
+      <!-- MEDICINE -->
+      <div class="sign-card sc-green">
+        <div class="sign-icon">💊</div>
+        <div class="sign-info">
+          <div class="sign-name">MEDICINE</div>
+          <div class="sign-desc">Pinky extended at chest level</div>
+          <ul class="sign-steps">
+            <li>Extend only your pinky finger (I sign)</li>
+            <li>Curl all other fingers and thumb</li>
+            <li>Hold steady at chest level</li>
+          </ul>
+          <div class="sign-tag">need · pinky only + mid position</div>
+        </div>
+      </div>
+
+      <!-- BATHROOM -->
+      <div class="sign-card sc-green">
+        <div class="sign-icon">🚽</div>
+        <div class="sign-info">
+          <div class="sign-name">BATHROOM</div>
+          <div class="sign-desc">Y-sign shaking side-to-side</div>
+          <ul class="sign-steps">
+            <li>Extend thumb and pinky (Y sign)</li>
+            <li>Curl middle fingers</li>
+            <li>Shake your hand laterally (left-right)</li>
+          </ul>
+          <div class="sign-tag">need · Y-sign + lateral motion</div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="guide-footer">
+      <p>
+        <strong>Tips:</strong> Hold each gesture steady for about 1 second · Face the camera directly ·
+        Good lighting helps · The confidence bar shows how well the sign is detected ·
+        Press <span class="guide-kbd">Space</span> to force-lock a partially detected gesture ·
+        Use <strong>Tap Tokens</strong> on the sidebar for the full 61-token vocabulary
+      </p>
+    </div>
+  </div>
+</div>
+
+<script>
+const TOKEN_CATEGORIES = [
+  { id: 'symptom',  label: 'Symptoms',
+    tokens: ['PAIN','FEVER','NAUSEA','COUGH','DIZZY','VOMIT','BLEEDING','SWELLING','BURNING','ITCHING','TIRED','BREATHLESS','WEAKNESS','NUMBNESS','RASH','CRAMP','STIFF','SORE'] },
+  { id: 'location', label: 'Body Parts',
+    tokens: ['HEAD','CHEST','STOMACH','BACK','THROAT','NECK','SHOULDER','ARM','HAND','LEG','KNEE','FOOT','EYE','EAR','TEETH','MOUTH','NOSE','SKIN','HEART','LUNG'] },
+  { id: 'severity', label: 'Severity',
+    tokens: ['SEVERE','MILD','SHARP','CONSTANT','SUDDEN','WORSE','BETTER'] },
+  { id: 'duration', label: 'Duration',
+    tokens: ['LONG','TODAY','DAYS'] },
+  { id: 'need',     label: 'Needs',
+    tokens: ['WATER','MEDICINE','DOCTOR','BATHROOM','REST','FOOD'] },
+  { id: 'intent',   label: 'Intent',
+    tokens: ['YES','NO','HELP','THANK','SORRY','AGAIN'] },
+  { id: 'question', label: 'Questions',
+    tokens: ['WHERE','WHEN','HOW_LONG'] },
+  { id: 'control',  label: 'Control',
+    tokens: ['STOP'] },
+];
+
+const STAGES = ['Sign detection','Tap / action','Slot filling','Voice output'];
+
+let lastSentence = '';
+let lastTokenCount = 0;
+let collapsedCats = new Set();
+
+// ── BUILD TOKEN CATEGORIES ─────────────────────────────────────────────────
+
+function buildTokenCategories() {
+  const container = document.getElementById('token-categories');
+  let total = 0;
+
+  // Keep the header
+  let html = '';
+  for (const cat of TOKEN_CATEGORIES) {
+    total += cat.tokens.length;
+    const isCollapsed = collapsedCats.has(cat.id);
+    html += `<div class="cat-header cat-${cat.id}" onclick="toggleCat('${cat.id}')">
+      ${cat.label} <span style="opacity:.5;font-weight:400">(${cat.tokens.length})</span>
+      <span class="chevron${isCollapsed ? ' collapsed' : ''}">▼</span>
+    </div>`;
+    html += `<div class="tap-grid" id="cat-${cat.id}" style="${isCollapsed ? 'display:none' : ''}">`;
+    for (const t of cat.tokens) {
+      const display = t.replace('_', ' ');
+      html += `<button class="tap-btn" onclick="tapToken('${t}')">${display}</button>`;
+    }
+    html += '</div>';
+  }
+
+  // Insert after the header
+  const header = container.querySelector('.side-header');
+  // Remove old generated content
+  while (header.nextSibling) header.nextSibling.remove();
+  header.insertAdjacentHTML('afterend', html);
+  document.getElementById('token-count').textContent = total + ' tokens';
+}
+
+function toggleCat(catId) {
+  if (collapsedCats.has(catId)) collapsedCats.delete(catId);
+  else collapsedCats.add(catId);
+  buildTokenCategories();
+}
+
+function buildPipeline(activeStage) {
+  const strip = document.getElementById('pipeline');
+  strip.innerHTML = STAGES.map((name, i) => {
+    const active = i === activeStage;
+    const done   = i < activeStage;
+    return `<div class="pipe-stage${active ? ' active' : ''}">
+      <div class="pipe-stage-name">${name}</div>
+      <div class="pipe-dot${done ? ' done' : active ? ' pulsing' : ''}"></div>
+    </div>`;
+  }).join('');
+}
+
+// ── RENDER PILLS ───────────────────────────────────────────────────────────
+
+function renderPills(tokens) {
+  const row = document.getElementById('pills-row');
+  if (!tokens.length) { row.innerHTML = ''; return; }
+  row.innerHTML = tokens.map((t, i) => {
+    const age = tokens.length - 1 - i;
+    let dotClass = 'dot-sign-older';
+    if (t.source === 'tap')   dotClass = 'dot-tap';
+    else if (t.source === 'quick') dotClass = 'dot-quick';
+    else if (age === 0) dotClass = 'dot-sign-new';
+    else if (age === 1) dotClass = 'dot-sign-old';
+
+    const srcTag = t.source !== 'sign' ? `<span class="src-tag">·${t.source}</span>` : '';
+    return `<div class="pill">
+      <div class="dot ${dotClass}"></div>
+      <span class="lbl">${t.name}</span>
+      ${srcTag}
+    </div>`;
+  }).join('');
+}
+
+// ── CONFIDENCE BAR ─────────────────────────────────────────────────────────
+
+function updateConfCard(gesture, confidence) {
+  const card   = document.getElementById('conf-card');
+  const fill   = document.getElementById('conf-bar-fill');
+  const status = document.getElementById('conf-status-text');
+  const tname  = document.getElementById('conf-token-name');
+
+  if (!gesture || confidence === 0) {
+    card.classList.remove('visible');
+    return;
+  }
+
+  card.classList.add('visible');
+  tname.textContent  = gesture;
+  fill.style.width   = confidence + '%';
+  fill.style.background = confidence < 65 ? '#fbbf24' : '#4ade80';
+  status.textContent = confidence < 65
+    ? `${confidence}% — hold steadier`
+    : confidence < 82
+    ? `${confidence}% — locking in...`
+    : `${confidence}% — locking in...`;
+}
+
+// ── SUBTITLE + TTS ─────────────────────────────────────────────────────────
+
+let subtitleTimer = null;
+
+function showSubtitle(text) {
+  const bar     = document.getElementById('subtitle');
+  const spinner = document.getElementById('sub-spinner');
+  const textEl  = document.getElementById('sub-text');
+
+  // Clear any pending auto-hide
+  if (subtitleTimer) { clearTimeout(subtitleTimer); subtitleTimer = null; }
+
+  textEl.textContent = text;
+  bar.classList.add('visible');
+  spinner.classList.add('spinning');
+
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.rate   = 0.95;
+  utterance.pitch  = 1.0;
+  utterance.onend  = () => {
+    spinner.classList.remove('spinning');
+    // Auto-hide subtitle after TTS finishes
+    subtitleTimer = setTimeout(() => {
+      bar.classList.remove('visible');
+    }, 4000);
+  };
+  window.speechSynthesis.cancel();
+  window.speechSynthesis.speak(utterance);
+}
+
+// ── POLLING LOOP ────────────────────────────────────────────────────────────
+
+async function poll() {
+  try {
+    const res  = await fetch('/data');
+    const data = await res.json();
+
+    // waiting state
+    document.getElementById('waiting-msg').style.display =
+      data.tokens.length === 0 && !data.active_gesture ? 'block' : 'none';
+
+    renderPills(data.tokens);
+    updateConfCard(data.active_gesture, data.confidence);
+    buildPipeline(data.stage);
+    updateDebugPanel(data.scores);
+
+    // Show new sentence when it changes
+    if (data.sentence && data.sentence !== lastSentence) {
+      lastSentence = data.sentence;
+      showSubtitle(data.sentence);
+    }
+
+    // When tokens are cleared, hide subtitle and reset
+    if (data.tokens.length !== lastTokenCount) {
+      lastTokenCount = data.tokens.length;
+      if (data.tokens.length === 0) {
+        if (subtitleTimer) { clearTimeout(subtitleTimer); subtitleTimer = null; }
+        document.getElementById('subtitle').classList.remove('visible');
+        lastSentence = '';
+      }
+    }
+
+    // If backend sentence is empty but subtitle is visible, hide it
+    if (!data.sentence && lastSentence) {
+      lastSentence = '';
+      if (subtitleTimer) { clearTimeout(subtitleTimer); subtitleTimer = null; }
+      document.getElementById('subtitle').classList.remove('visible');
+    }
+
+  } catch (e) {
+    // backend not ready yet — silent retry
+  }
+}
+
+setInterval(poll, 200);
+
+// ── USER ACTIONS ────────────────────────────────────────────────────────────
+
+async function tapToken(name) {
+  await fetch('/inject', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({token: name, source: 'tap'})
+  });
+}
+
+async function quickAction(tokens, sentence) {
+  await fetch('/quick', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({tokens, sentence})
+  });
+  lastSentence = '';
+}
+
+async function clearAll() {
+  window.speechSynthesis.cancel();
+  if (subtitleTimer) { clearTimeout(subtitleTimer); subtitleTimer = null; }
+  document.getElementById('subtitle').classList.remove('visible');
+  lastSentence = '';
+  lastTokenCount = 0;
+  await fetch('/clear', {method: 'POST'});
+}
+
+function speakCurrent() {
+  const text = document.getElementById('sub-text').textContent;
+  if (text) showSubtitle(text);
+}
+
+// ── SUBMIT CURRENT DETECTED GESTURE ────────────────────────────────────────
+
+async function submitGesture() {
+  await fetch('/submit', {method: 'POST'});
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'Space') { e.preventDefault(); submitGesture(); }
+  if (e.code === 'KeyC')  { clearAll(); }
+  if (e.code === 'KeyG')  { toggleGuide(); }
+  if (e.code === 'Escape') {
+    const overlay = document.getElementById('guide-overlay');
+    if (overlay.classList.contains('visible')) toggleGuide();
+  }
+});
+
+// ── SIGN GUIDE ──────────────────────────────────────────────────────────────
+
+function toggleGuide() {
+  const overlay = document.getElementById('guide-overlay');
+  overlay.classList.toggle('visible');
+}
+
+// ── LIVE SCORE DEBUG PANEL ──────────────────────────────────────────────────
+
+let debugVisible = false;
+
+function toggleDebug() {
+  debugVisible = !debugVisible;
+  document.getElementById('debug-panel').style.display = debugVisible ? 'block' : 'none';
+}
+
+function updateDebugPanel(scores) {
+  if (!debugVisible || !scores) return;
+  const el = document.getElementById('debug-scores');
+  const sorted = Object.entries(scores).sort((a,b) => b[1]-a[1]);
+  el.innerHTML = sorted.map(([k,v]) => {
+    const pct = Math.round(v * 100);
+    const bar = '█'.repeat(Math.round(pct / 10)) + '░'.repeat(10 - Math.round(pct / 10));
+    const color = pct > 72 ? '#4ade80' : pct > 40 ? '#fbbf24' : 'rgba(255,255,255,0.3)';
+    return `<div style="display:flex;gap:6px;align-items:center;font-size:11px;margin-bottom:3px">
+      <span style="width:60px;color:#fff;font-weight:500">${k}</span>
+      <span style="color:${color};font-family:monospace;font-size:10px">${bar}</span>
+      <span style="color:${color};min-width:28px">${pct}%</span>
+    </div>`;
+  }).join('');
+}
+
+// ── INIT ────────────────────────────────────────────────────────────────────
+
+buildTokenCategories();
+buildPipeline(0);
+</script>
+</body>
+</html>
