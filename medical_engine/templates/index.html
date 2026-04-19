@@ -41,13 +41,153 @@
   .spinning { animation: spin .8s linear infinite; }
   .subtitle-text { font-size: 15px; font-weight: 500; line-height: 1.4; }
 
-  /* ── CONFIDENCE CARD ── */
-  .conf-card { position: absolute; bottom: 52px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.82); border-radius: 12px; padding: 8px 18px 10px; min-width: 160px; text-align: center; opacity: 0; transition: opacity .25s; pointer-events: none; }
+  /* ── REDESIGNED CONFIDENCE CARD ── */
+  .conf-card {
+    position: absolute;
+    bottom: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    min-width: 200px;
+    max-width: 280px;
+    text-align: center;
+    opacity: 0;
+    transition: opacity .35s ease;
+    pointer-events: none;
+  }
   .conf-card.visible { opacity: 1; }
-  .conf-token-name { font-size: 20px; font-weight: 700; letter-spacing: .06em; margin-bottom: 3px; }
-  .conf-status-text { font-size: 10px; color: rgba(255,255,255,0.5); margin-bottom: 6px; }
-  .conf-bar-track { height: 3px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden; }
-  .conf-bar-fill { height: 100%; border-radius: 2px; transition: width .1s linear, background .3s; }
+
+  .conf-glow-ring {
+    width: 90px;
+    height: 90px;
+    border-radius: 50%;
+    margin: 0 auto 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    transition: background .4s ease, box-shadow .4s ease;
+    background: rgba(255,255,255,0.04);
+    border: 1.5px solid rgba(255,255,255,0.1);
+  }
+  .conf-glow-ring.low  { background: rgba(251,191,36,0.08); border-color: rgba(251,191,36,0.3); box-shadow: 0 0 20px rgba(251,191,36,0.15); }
+  .conf-glow-ring.mid  { background: rgba(96,165,250,0.10); border-color: rgba(96,165,250,0.40); box-shadow: 0 0 28px rgba(96,165,250,0.25); }
+  .conf-glow-ring.high { background: rgba(74,222,128,0.12); border-color: rgba(74,222,128,0.50); box-shadow: 0 0 36px rgba(74,222,128,0.35); }
+  .conf-glow-ring.locked {
+    border-color: rgba(74,222,128,0.9);
+    box-shadow: 0 0 48px rgba(74,222,128,0.55), 0 0 80px rgba(74,222,128,0.2);
+    animation: ring-pulse 0.6s ease-out;
+  }
+  @keyframes ring-pulse {
+    0%   { box-shadow: 0 0 0px rgba(74,222,128,0.9); }
+    50%  { box-shadow: 0 0 60px rgba(74,222,128,0.7), 0 0 100px rgba(74,222,128,0.3); }
+    100% { box-shadow: 0 0 36px rgba(74,222,128,0.35); }
+  }
+
+  /* SVG arc progress ring inside conf-glow-ring */
+  .conf-ring-svg {
+    position: absolute;
+    inset: -3px;
+    width: calc(100% + 6px);
+    height: calc(100% + 6px);
+    transform: rotate(-90deg);
+  }
+  .conf-ring-track { fill: none; stroke: rgba(255,255,255,0.06); stroke-width: 2.5; }
+  .conf-ring-fill  { fill: none; stroke-width: 2.5; stroke-linecap: round;
+    transition: stroke-dashoffset .12s linear, stroke .35s ease; }
+
+  .conf-token-emoji { font-size: 32px; line-height: 1; display: block; transition: transform .3s ease; }
+  .conf-glow-ring.high .conf-token-emoji,
+  .conf-glow-ring.locked .conf-token-emoji { transform: scale(1.12); }
+
+  .conf-token-name {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    color: #fff;
+    margin-bottom: 2px;
+    transition: color .35s;
+    text-shadow: 0 0 20px rgba(255,255,255,0.3);
+  }
+  .conf-glow-ring.high  ~ .conf-token-name { color: #4ade80; text-shadow: 0 0 24px rgba(74,222,128,0.5); }
+  .conf-glow-ring.locked ~ .conf-token-name { color: #4ade80; }
+
+  .conf-pct {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    color: rgba(255,255,255,0.5);
+    transition: color .35s;
+  }
+  .conf-glow-ring.low  ~ * .conf-pct { color: #fbbf24; }
+  .conf-glow-ring.mid  ~ * .conf-pct { color: #93c5fd; }
+  .conf-glow-ring.high ~ * .conf-pct { color: #4ade80; }
+
+  .conf-status-text {
+    font-size: 10px;
+    color: rgba(255,255,255,0.3);
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    margin-top: 4px;
+  }
+
+  /* ── WAVEFORM / HEARTBEAT STRIP ── */
+  .waveform-wrap {
+    position: absolute;
+    bottom: 52px;
+    left: 0; right: 0;
+    height: 40px;
+    pointer-events: none;
+    overflow: hidden;
+    opacity: 0;
+    transition: opacity .4s;
+  }
+  .waveform-wrap.visible { opacity: 1; }
+  .waveform-canvas { width: 100%; height: 100%; }
+
+  /* ── DETECTION FLASH OVERLAY ── */
+  .detect-flash {
+    position: absolute;
+    inset: 0;
+    border-radius: 0;
+    pointer-events: none;
+    opacity: 0;
+    border: 3px solid rgba(74,222,128,0);
+    transition: opacity .1s;
+  }
+  .detect-flash.flash {
+    animation: flash-anim 0.5s ease-out forwards;
+  }
+  @keyframes flash-anim {
+    0%   { opacity: 1; border-color: rgba(74,222,128,0.9); box-shadow: inset 0 0 60px rgba(74,222,128,0.25); }
+    100% { opacity: 0; border-color: rgba(74,222,128,0); }
+  }
+
+  /* ── LANDMARK SKELETON OVERLAY ── */
+  /* The Python-rendered landmarks on the MJPEG are grayscale/white.
+     Add a CSS tint layer to make them glow green. */
+  .cam-tint {
+    position: absolute;
+    inset: 0;
+    background: transparent;
+    mix-blend-mode: screen;
+    pointer-events: none;
+  }
+
+  /* ── TOKEN COMMIT ANIMATION ── */
+  .pill-new {
+    animation: pill-pop .4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  @keyframes pill-pop {
+    0%   { transform: scale(0.6); opacity: 0; }
+    100% { transform: scale(1);   opacity: 1; }
+  }
+
+  /* ── CONFIDENCE STATE COLORS ── */
+  :root {
+    --conf-low:  #fbbf24;
+    --conf-mid:  #60a5fa;
+    --conf-high: #4ade80;
+  }
 
   /* ── PIPELINE STRIP ── */
   .pipeline { position: absolute; bottom: 0; left: 0; right: 0; display: flex; background: rgba(0,0,0,0.65); border-top: 1px solid rgba(255,255,255,0.07); }
@@ -200,12 +340,28 @@
       <div class="subtitle-text" id="sub-text"></div>
     </div>
 
-    <!-- confidence card -->
+    <!-- detection flash border -->
+    <div class="detect-flash" id="detect-flash"></div>
+
+    <!-- waveform strip -->
+    <div class="waveform-wrap" id="waveform-wrap">
+      <canvas class="waveform-canvas" id="waveform-canvas"></canvas>
+    </div>
+
+    <!-- confidence card — redesigned -->
     <div class="conf-card" id="conf-card">
-      <div class="conf-token-name" id="conf-token-name">—</div>
-      <div class="conf-status-text" id="conf-status-text"></div>
-      <div class="conf-bar-track">
-        <div class="conf-bar-fill" id="conf-bar-fill" style="width:0%"></div>
+      <div class="conf-glow-ring" id="conf-ring">
+        <svg class="conf-ring-svg" viewBox="0 0 96 96">
+          <circle class="conf-ring-track" cx="48" cy="48" r="44"/>
+          <circle class="conf-ring-fill" id="conf-arc" cx="48" cy="48" r="44"
+                  stroke-dasharray="276.46" stroke-dashoffset="276.46" stroke="#4ade80"/>
+        </svg>
+        <span class="conf-token-emoji" id="conf-emoji">—</span>
+      </div>
+      <div class="conf-token-name" id="conf-token-name"></div>
+      <div style="display:flex;align-items:center;justify-content:center;gap:6px">
+        <span class="conf-pct" id="conf-pct">0%</span>
+        <span class="conf-status-text" id="conf-status-text">detecting</span>
       </div>
     </div>
 
@@ -694,7 +850,8 @@ function renderPills(tokens) {
     else if (age === 1) dotClass = 'dot-sign-old';
 
     const srcTag = t.source !== 'sign' ? `<span class="src-tag">·${t.source}</span>` : '';
-    return `<div class="pill">
+    const isNew = (i === tokens.length - 1 && tokens.length > 0) ? ' pill-new' : '';
+    return `<div class="pill${isNew}">
       <div class="dot ${dotClass}"></div>
       <span class="lbl">${t.name}</span>
       ${srcTag}
@@ -702,28 +859,140 @@ function renderPills(tokens) {
   }).join('');
 }
 
-// ── CONFIDENCE BAR ─────────────────────────────────────────────────────────
+// ── TOKEN EMOJI MAP ──────────────────────────────────────────────────────────
+const TOKEN_EMOJI = {
+  PAIN: '✊', FEVER: '🤚', NAUSEA: '🌀', HEAD: '☝️', CHEST: '🫱',
+  STOMACH: '🫳', YES: '✅', NO: '🚫', HELP: '👍', STOP: '🖐️',
+  WATER: '💧', COUGH: '😷', DIZZY: '💫', THROAT: '🗣️', EYE: '👁️',
+  THANK: '🙏', DOCTOR: '✌️', SEVERE: '⚡', MEDICINE: '💊', BATHROOM: '🚻'
+};
+
+// ── WAVEFORM ─────────────────────────────────────────────────────────────────
+const waveformCanvas = document.getElementById('waveform-canvas');
+const wfCtx = waveformCanvas.getContext('2d');
+const waveformHistory = new Array(200).fill(0);
+let waveformAnimId = null;
+let waveformActive = false;
+
+function startWaveform(color) {
+  waveformActive = true;
+  document.getElementById('waveform-wrap').classList.add('visible');
+  if (!waveformAnimId) drawWaveform(color);
+}
+function stopWaveform() {
+  waveformActive = false;
+  document.getElementById('waveform-wrap').classList.remove('visible');
+  if (waveformAnimId) { cancelAnimationFrame(waveformAnimId); waveformAnimId = null; }
+}
+function drawWaveform(color) {
+  const W = waveformCanvas.offsetWidth;
+  const H = waveformCanvas.offsetHeight;
+  waveformCanvas.width = W;
+  waveformCanvas.height = H;
+  wfCtx.clearRect(0, 0, W, H);
+
+  const mid = H / 2;
+  wfCtx.beginPath();
+  wfCtx.strokeStyle = color || '#4ade80';
+  wfCtx.lineWidth = 1.5;
+  wfCtx.shadowColor = color || '#4ade80';
+  wfCtx.shadowBlur = 6;
+
+  const step = W / waveformHistory.length;
+  for (let i = 0; i < waveformHistory.length; i++) {
+    const x = i * step;
+    const y = mid - (waveformHistory[i] * mid * 0.85);
+    if (i === 0) wfCtx.moveTo(x, y);
+    else wfCtx.lineTo(x, y);
+  }
+  wfCtx.stroke();
+
+  if (waveformActive) {
+    waveformAnimId = requestAnimationFrame(() => drawWaveform(color));
+  }
+}
+
+// ── CIRCULAR PROGRESS ARC ────────────────────────────────────────────────────
+const CIRC = 276.46; // 2π × 44
+function setArcProgress(pct, color) {
+  const arc = document.getElementById('conf-arc');
+  const offset = CIRC - (pct / 100) * CIRC;
+  arc.style.strokeDashoffset = offset;
+  arc.style.stroke = color;
+}
+
+// ── MAIN CONFIDENCE UPDATER ──────────────────────────────────────────────────
+let lastGesture = '';
+let confLocked = false;
+let lockTimer = null;
 
 function updateConfCard(gesture, confidence) {
-  const card   = document.getElementById('conf-card');
-  const fill   = document.getElementById('conf-bar-fill');
-  const status = document.getElementById('conf-status-text');
-  const tname  = document.getElementById('conf-token-name');
+  const card = document.getElementById('conf-card');
+  const ring = document.getElementById('conf-ring');
+  const nameEl = document.getElementById('conf-token-name');
+  const emojiEl = document.getElementById('conf-emoji');
+  const pctEl = document.getElementById('conf-pct');
+  const statusEl = document.getElementById('conf-status-text');
 
-  if (!gesture || confidence === 0) {
-    card.classList.remove('visible');
+  if (!gesture || confidence < 20) {
+    if (!confLocked) {
+      card.classList.remove('visible');
+      setArcProgress(0, '#ffffff22');
+      stopWaveform();
+      waveformHistory.fill(0);
+    }
     return;
   }
 
   card.classList.add('visible');
-  tname.textContent  = gesture;
-  fill.style.width   = confidence + '%';
-  fill.style.background = confidence < 65 ? '#fbbf24' : '#4ade80';
-  status.textContent = confidence < 65
-    ? `${confidence}% — hold steadier`
-    : confidence < 82
-    ? `${confidence}% — locking in...`
-    : `${confidence}% — locking in...`;
+
+  // Update waveform history
+  waveformHistory.push(confidence / 100);
+  waveformHistory.shift();
+
+  // Determine state
+  let state, color, arcColor;
+  if (confidence >= 82) {
+    state = 'high'; color = '#4ade80'; arcColor = '#4ade80';
+  } else if (confidence >= 50) {
+    state = 'mid'; color = '#60a5fa'; arcColor = '#60a5fa';
+  } else {
+    state = 'low'; color = '#fbbf24'; arcColor = '#fbbf24';
+  }
+
+  ring.className = 'conf-glow-ring ' + state;
+  setArcProgress(confidence, arcColor);
+  startWaveform(color);
+
+  emojiEl.textContent = TOKEN_EMOJI[gesture] || '🤟';
+  nameEl.textContent = gesture;
+  pctEl.textContent = confidence + '%';
+  statusEl.textContent = confidence >= 74 ? 'ready to lock' : 'detecting...';
+
+  // Flash on new gesture detection
+  if (gesture !== lastGesture) {
+    lastGesture = gesture;
+    nameEl.style.animation = 'none';
+    setTimeout(() => nameEl.style.animation = '', 10);
+  }
+}
+
+// ── DETECTION COMMIT FLASH ───────────────────────────────────────────────────
+function triggerCommitFlash() {
+  const el = document.getElementById('detect-flash');
+  el.classList.remove('flash');
+  void el.offsetWidth; // reflow
+  el.classList.add('flash');
+
+  // Lock the conf card briefly so it doesn't disappear
+  const ring = document.getElementById('conf-ring');
+  ring.classList.add('locked');
+  confLocked = true;
+  if (lockTimer) clearTimeout(lockTimer);
+  lockTimer = setTimeout(() => {
+    ring.classList.remove('locked');
+    confLocked = false;
+  }, 1200);
 }
 
 // ── SUBTITLE + TTS ─────────────────────────────────────────────────────────
@@ -768,6 +1037,11 @@ async function poll() {
       data.tokens.length === 0 && !data.active_gesture ? 'block' : 'none';
 
     renderPills(data.tokens);
+    
+    if (data.tokens.length > lastTokenCount) {
+      triggerCommitFlash();
+    }
+    
     updateConfCard(data.active_gesture, data.confidence);
     buildPipeline(data.stage);
     updateDebugPanel(data.scores);

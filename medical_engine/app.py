@@ -81,20 +81,47 @@ def camera_loop():
             with landmarks_lock:
                 current_landmarks = list(latest_landmarks)
 
-            # Draw landmarks
+            # ── DRAW LANDMARKS (upgraded: colored by confidence) ──
             connections = [
-                (0,1),(1,2),(2,3),(3,4),
-                (0,5),(5,6),(6,7),(7,8),
-                (5,9),(9,10),(10,11),(11,12),
-                (9,13),(13,14),(14,15),(15,16),
-                (13,17),(0,17),(17,18),(18,19),(19,20)
+                (0,1),(1,2),(2,3),(3,4),       # thumb
+                (0,5),(5,6),(6,7),(7,8),       # index
+                (5,9),(9,10),(10,11),(11,12),  # middle
+                (9,13),(13,14),(14,15),(15,16),# ring
+                (13,17),(0,17),(17,18),(18,19),(19,20) # pinky + palm
             ]
+
+            # Color based on active confidence
+            with state_lock:
+                conf = state.get("confidence", 0)
+                active = state.get("active_gesture", "")
+
+            if conf >= 82:
+                skeleton_color = (74, 222, 128)    # green - locked
+            elif conf >= 50:
+                skeleton_color = (96, 165, 250)    # blue - detecting
+            elif active:
+                skeleton_color = (251, 191, 36)    # amber - weak
+            else:
+                skeleton_color = (180, 180, 180)   # gray - idle
+
             for hand_lms in current_landmarks:
                 pts = [(int(lm.x * w), int(lm.y * h)) for lm in hand_lms]
+                # Draw connections
                 for a, b in connections:
-                    cv2.line(frame, pts[a], pts[b], (200, 200, 200), 1)
-                for pt in pts:
-                    cv2.circle(frame, pt, 3, (255, 255, 255), -1)
+                    cv2.line(frame, pts[a], pts[b], skeleton_color, 2, cv2.LINE_AA)
+                # Draw joint dots — larger for tips
+                tip_indices = {4, 8, 12, 16, 20}
+                for idx, pt in enumerate(pts):
+                    r = 5 if idx in tip_indices else 3
+                    cv2.circle(frame, pt, r, skeleton_color, -1, cv2.LINE_AA)
+                    cv2.circle(frame, pt, r + 1, (0, 0, 0), 1, cv2.LINE_AA)  # outline
+
+            # Optional: Add confidence bar directly on frame (bottom of frame)
+            if conf > 20:
+                bar_w = int((conf / 100) * w)
+                bar_color = skeleton_color
+                cv2.rectangle(frame, (0, h - 4), (bar_w, h), bar_color, -1)
+                cv2.rectangle(frame, (0, h - 4), (w, h), (40, 40, 40), 1)
 
             detected_token, confidence, scores = gesture_engine.process(current_landmarks, frame.shape)
 
@@ -104,7 +131,7 @@ def camera_loop():
                     state["active_gesture"] = detected_token
                     state["confidence"] = round(confidence * 100)
 
-                    if confidence >= 0.82:
+                    if confidence >= gesture_engine.confirm_threshold:
                         existing = [t["name"] for t in state["tokens"]]
                         if not existing or existing[-1] != detected_token:
                             state["tokens"].append({
@@ -112,6 +139,7 @@ def camera_loop():
                                 "source": "sign"
                             })
                             state["stage"] = 2
+                            gesture_engine.mark_committed(detected_token)  # per-token cooldown
                             gesture_engine.reset()
 
                             sentence = build_sentence([t["name"] for t in state["tokens"]])
@@ -242,6 +270,8 @@ def submit():
         if not existing or existing[-1] != gesture:
             state["tokens"].append({"name": gesture, "source": "sign"})
             state["stage"] = 2
+            gesture_engine.mark_committed(gesture)
+            gesture_engine.reset()
             sentence = build_sentence([t["name"] for t in state["tokens"]])
             if sentence:
                 state["sentence"] = sentence
